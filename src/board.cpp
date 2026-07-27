@@ -48,15 +48,6 @@ void Board::setup() {
 }
 
 void Board::fillBoard() {
-    char symbols[6][2] = {
-        {'P', 'p'},
-        {'N', 'n'},
-        {'B', 'b'},
-        {'R', 'r'},
-        {'Q', 'q'},
-        {'K', 'k'}
-    };
-
     for(int rank = 7; rank >= 0; --rank) {
         for(int file = 0; file <= 7; ++file) {
             int sq = rank * 8 + file;
@@ -284,3 +275,112 @@ bool Board::from_FEN(const std::string& FEN) {
 
     return true;
 }
+
+std::string Board::to_FEN() const {
+    std::string res = "";
+
+    // [Piece Placement]
+    int cnt = 0;
+
+    for(int rank = 7; rank >= 0; --rank) {
+        for(int file = 0; file < 8; ++file) {
+            int sq = rank * 8 + file;
+            uint64_t mask = (1ULL << sq);
+
+            char piece = '.';
+
+            for(int p = PAWN; p <= KING; ++p) {
+                for(int c = WHITE; c <= BLACK; ++c) {
+                    if(mask & bitboards[p][c]) {
+                        piece = symbols[p][c];
+                    }
+                }
+            }
+
+            if(piece != '.') {
+                if(cnt != 0) {
+                    res += (char)(cnt + '0');
+                    cnt = 0;
+                }
+
+                res += piece;
+            } else {
+                cnt++;
+            }
+        }
+
+        if(cnt > 0) {
+            res += (char)(cnt + '0');
+            cnt = 0;
+        }
+
+        if(rank > 0) {
+            res += '/';
+        }
+    }
+
+    res += ' ';
+
+
+    // [Active Color]
+    if(active_color == WHITE) {
+        res += 'w';
+    } else {
+        res += 'b';
+    }
+
+    res += ' ';
+
+    
+    // [Castling]
+    if(white_can_castle_kingside) {
+        res += 'K';
+    }
+
+    if(white_can_castle_queenside) {
+        res += 'Q';
+    }
+
+    if(black_can_castle_kingside) {
+        res += 'k';
+    }
+
+    if(black_can_castle_queenside) {
+        res += 'q';
+    }
+
+    if(!(white_can_castle_kingside 
+        || white_can_castle_queenside
+        || black_can_castle_kingside
+        || black_can_castle_queenside)) {
+        res += '-';
+    }
+
+    res += ' ';
+
+
+    // [En passant] - square with en passant. - if no en passant capture is available
+    if(en_passant_square == -1) {
+        res += '-';
+    } else {
+        int rank = en_passant_square / 8;
+        int file = en_passant_square % 8;
+
+        res += (char)(file + 'a');
+        res += (char)(rank + '1');
+    }
+
+    res += ' ';
+
+
+    // [Halfmove Clock]
+    res += std::to_string(halfmove_clock);
+
+    res += ' ';
+
+
+    // [Fullmove Number] starts at 1 and increments after Black's turn
+    res += std::to_string(fullmove_number);
+
+    return res;
+};

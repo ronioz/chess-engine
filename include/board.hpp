@@ -46,6 +46,15 @@ public:
     void fillBoard(); //fills the board from bitboards to boards[][] matrix
     void printBoard(); //prints the board in terminal
 
+    char symbols[6][2] = {
+        {'P', 'p'},
+        {'N', 'n'},
+        {'B', 'b'},
+        {'R', 'r'},
+        {'Q', 'q'},
+        {'K', 'k'}
+    };
+
     /*
     FEN is represented as 
     [Piece Placement] each rank is separated by /
@@ -57,6 +66,6 @@ public:
 
     rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
     */
-    bool from_FEN(const std::string& FEN);
-    std::string to_FEN() const;
+    bool from_FEN(const std::string& FEN); //turns FEN to bitboards
+    std::string to_FEN() const; //turns bitboards to FEN
 };
