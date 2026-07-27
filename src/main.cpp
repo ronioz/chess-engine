@@ -1,8 +1,8 @@
 #include <iostream>
-
-using namespace std;
+#include <board.hpp>
 
 int main() {
-    cout << "Hello world!\n";
-    return 0;
+    Board board;
+    board.setup();
+    board.printBoard();
 }
