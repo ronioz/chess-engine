@@ -176,6 +176,60 @@ std::vector<Move> generateKnightMoves(const Board& board) {
     return moves;
 }
 
+std::vector<Move> generateKingMoves(const Board& board) {
+    std::vector<Move> moves;
+
+    int color = board.active_color;
+    uint64_t king = board.bitboards[KING][color];
+
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
+
+    int start = __builtin_ctzll(king);
+    uint64_t king_mask = kingAttacks(start);
+
+    while(king_mask) {
+        int end = __builtin_ctzll(king_mask);
+
+        Move move;
+        move.start = start;
+        move.end = end;
+        move.promotion = -1;
+        move.flags = 0;
+
+        if((1ULL << end) & enemy_pieces) {
+            move.flags |= CAPTURE;
+        }
+
+        if(!((1ULL << end) & friendly_pieces)) {
+            moves.push_back(move);
+        }
+
+        king_mask &= (king_mask - 1);
+    }
+
+    //Castling: rights are cleared whenever the king/rook moves or the rook is captured,
+    //so a set bit already implies both are on their home squares. Whether the king is
+    //currently in or would pass through check is left to legal-move filtering.
+    if(color == WHITE) {
+        if((board.castling_rights & 8) && !(board.all_pieces & ((1ULL << 5) | (1ULL << 6)))) {
+            moves.push_back({start, 6, -1, CASTLE});
+        }
+        if((board.castling_rights & 4) && !(board.all_pieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3)))) {
+            moves.push_back({start, 2, -1, CASTLE});
+        }
+    } else {
+        if((board.castling_rights & 2) && !(board.all_pieces & ((1ULL << 61) | (1ULL << 62)))) {
+            moves.push_back({start, 62, -1, CASTLE});
+        }
+        if((board.castling_rights & 1) && !(board.all_pieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59)))) {
+            moves.push_back({start, 58, -1, CASTLE});
+        }
+    }
+
+    return moves;
+}
+
 std::vector<Move> generateBishopMoves(const Board& board) {
     std::vector<Move> moves;
 

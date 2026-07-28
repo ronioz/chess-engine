@@ -43,6 +43,7 @@ uint64_t knightAttacks(int square);
 
 std::vector<Move> generatePawnMoves(const Board& board);
 std::vector<Move> generateKnightMoves(const Board& board);
+std::vector<Move> generateKingMoves(const Board& board);
 std::vector<Move> generateBishopMoves(const Board& board);
 std::vector<Move> generateRookMoves(const Board& board);
 std::vector<Move> generateQueenMoves(const Board& board);
