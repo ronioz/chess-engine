@@ -14,7 +14,7 @@ SQUARE CALCULATION:
 .
 .
 .
-45-th bit: F5
+45-th bit: F6
 Formula: Bit Index = (Rank * 8) + File
 */
 
@@ -30,10 +30,7 @@ public:
     int active_color = WHITE;
     void switchColor(); //Cycles BLACK and WHITE
 
-    bool white_can_castle_kingside = false;
-    bool white_can_castle_queenside = false;
-    bool black_can_castle_kingside = false;
-    bool black_can_castle_queenside = false;
+    int castling_rights = 0;
 
     int en_passant_square = -1; //-1 means no en passant square
     int halfmove_clock = 0;

@@ -94,17 +94,14 @@ bool from_FEN(Board& board, const std::string& FEN) {
         return false;
     }
 
-    board.white_can_castle_kingside = false;
-    board.white_can_castle_queenside = false;
-    board.black_can_castle_kingside = false;
-    board.black_can_castle_queenside = false;
+    board.castling_rights = 0;
 
     if(token != "-") {
         for(int j = 0; j < (int)token.size(); ++j) {
-            if(token[j] == 'K') board.white_can_castle_kingside = true;
-            else if(token[j] == 'Q') board.white_can_castle_queenside = true;
-            else if(token[j] == 'k') board.black_can_castle_kingside = true;
-            else if(token[j] == 'q') board.black_can_castle_queenside = true;
+            if(token[j] == 'K') board.castling_rights |= 8;
+            else if(token[j] == 'Q') board.castling_rights |= 4;
+            else if(token[j] == 'k') board.castling_rights |= 2;
+            else if(token[j] == 'q') board.castling_rights |= 1;
             else {
                 printf("Check FEN Castling rights. It is incorrect\n");
                 return false;
@@ -254,26 +251,23 @@ std::string to_FEN(const Board& board) {
 
 
     // [CASTLING]
-    if(board.white_can_castle_kingside) {
+    if(board.castling_rights & 8) {
         res += 'K';
     }
 
-    if(board.white_can_castle_queenside) {
+    if(board.castling_rights & 4) {
         res += 'Q';
     }
 
-    if(board.black_can_castle_kingside) {
+    if(board.castling_rights & 2) {
         res += 'k';
     }
 
-    if(board.black_can_castle_queenside) {
+    if(board.castling_rights & 1) {
         res += 'q';
     }
 
-    if(!(board.white_can_castle_kingside
-        || board.white_can_castle_queenside
-        || board.black_can_castle_kingside
-        || board.black_can_castle_queenside)) {
+    if(!board.castling_rights) {
         res += '-';
     }
 

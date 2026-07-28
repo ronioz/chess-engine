@@ -43,6 +43,10 @@ void Board::setup() {
     all_pieces = white_pieces | black_pieces;
 
     active_color = WHITE;
+    castling_rights = 15;
+    en_passant_square = -1;
+    halfmove_clock = 0;
+    fullmove_number = 1;
 
     fillBoard();
 }

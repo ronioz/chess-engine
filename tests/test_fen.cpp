@@ -28,10 +28,7 @@ void test_from_FEN_valid_fields() {
     assert(ok);
 
     assert(board.active_color == WHITE);
-    assert(board.white_can_castle_kingside);
-    assert(board.white_can_castle_queenside);
-    assert(board.black_can_castle_kingside);
-    assert(board.black_can_castle_queenside);
+    assert(board.castling_rights == 15); // KQkq
     assert(board.en_passant_square == 43); // d6
     assert(board.halfmove_clock == 0);
     assert(board.fullmove_number == 2);
@@ -43,10 +40,10 @@ void test_from_FEN_no_castling_rights() {
     assert(ok);
 
     assert(board.active_color == BLACK);
-    assert(!board.white_can_castle_kingside);
-    assert(!board.white_can_castle_queenside);
-    assert(!board.black_can_castle_kingside);
-    assert(!board.black_can_castle_queenside);
+    assert(!(board.castling_rights & 8));
+    assert(!(board.castling_rights & 4));
+    assert(!(board.castling_rights & 2));
+    assert(!(board.castling_rights & 1));
     assert(board.en_passant_square == -1);
     assert(board.halfmove_clock == 15);
     assert(board.fullmove_number == 42);

@@ -31,3 +31,6 @@ _deps/
 
 # macOS
 .DS_Store
+
+# Claude
+Claude.md
