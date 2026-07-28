@@ -31,7 +31,6 @@ public:
     void switchColor(); //Cycles BLACK and WHITE
 
     int castling_rights = 0;
-
     int en_passant_square = -1; //-1 means no en passant square
     int halfmove_clock = 0;
     int fullmove_number = 1;
@@ -42,6 +41,7 @@ public:
     void setup(); //sets up the pieces. End result is starting position
     void fillBoard(); //fills the board from bitboards to boards[][] matrix
     void printBoard(); //prints the board in terminal
+    void updateBitboards();
 
     char symbols[6][2] = {
         {'P', 'p'},
@@ -51,4 +51,8 @@ public:
         {'Q', 'q'},
         {'K', 'k'}
     };
+
+
+    UndoState makeMove(const Move& move);
+    void unmakeMove(const UndoState& state);
 };

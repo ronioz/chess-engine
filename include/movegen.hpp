@@ -15,29 +15,6 @@ constexpr uint64_t rank_2 = 0x000000000000FF00ULL;
 constexpr uint64_t rank_7 = 0x00FF000000000000ULL;
 constexpr uint64_t rank_8 = 0xFF00000000000000ULL;
 
-enum Flag : int {
-    CAPTURE = 8,
-    CASTLE = 4,
-    EN_PASSANT = 2,
-    DOUBLE_PAWN_PUSH = 1
-};
-
-struct Move {
-    int start;
-    int end;
-    int promotion = -1;
-    int flags = 0;
-};
-
-struct UndoState {
-    Move move;
-    int moved_piece;
-    int captured_piece;
-    int castling_rights;
-    int en_passant_square;
-    int halfmove_clock;
-};
-
 uint64_t kingAttacks(int square);
 uint64_t knightAttacks(int square);
 

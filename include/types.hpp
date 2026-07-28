@@ -13,3 +13,26 @@ enum Pieces : int {
     QUEEN = 4,
     KING = 5
 };
+
+enum Flag : int {
+    CAPTURE = 8,
+    CASTLE = 4,
+    EN_PASSANT = 2,
+    DOUBLE_PAWN_PUSH = 1
+};
+
+struct Move {
+    int start;
+    int end;
+    int promotion = -1;
+    int flags = 0;
+};
+
+struct UndoState {
+    Move move;
+    int moved_piece;
+    int captured_piece;
+    int castling_rights;
+    int en_passant_square;
+    int halfmove_clock;
+};
