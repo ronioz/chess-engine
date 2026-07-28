@@ -67,3 +67,279 @@ uint64_t knightAttacks(int square) {
 
     return res;
 }
+
+static void addPawnMove(std::vector<Move>& moves, int start, int dest, uint64_t promotion_rank, int flags) {
+    if((1ULL << dest) & promotion_rank) {
+        moves.push_back({start, dest, KNIGHT, flags});
+        moves.push_back({start, dest, BISHOP, flags});
+        moves.push_back({start, dest, ROOK, flags});
+        moves.push_back({start, dest, QUEEN, flags});
+    } else {
+        moves.push_back({start, dest, -1, flags});
+    }
+}
+
+std::vector<Move> generatePawnMoves(const Board& board) {
+    std::vector<Move> moves;
+
+    int color = board.active_color;
+    uint64_t pawns = board.bitboards[PAWN][color];
+    uint64_t empty = ~board.all_pieces;
+    uint64_t enemy = (color == WHITE) ? board.black_pieces : board.white_pieces;
+    uint64_t ep_bb = (board.en_passant_square == -1) ? 0ULL : (1ULL << board.en_passant_square);
+
+    uint64_t promotion_rank = (color == WHITE) ? rank_8 : rank_1;
+    uint64_t start_rank = (color == WHITE) ? rank_2 : rank_7;
+    int push = (color == WHITE) ? 8 : -8;
+
+    //Single push
+    uint64_t single_push = (color == WHITE) ? ((pawns << 8) & empty) : ((pawns >> 8) & empty);
+
+    for(int dest = 0; dest < 64; ++dest) {
+        if(!(single_push & (1ULL << dest))) continue;
+        addPawnMove(moves, dest - push, dest, promotion_rank, 0);
+    }
+
+    //Double push (both the intermediate square and destination must be empty)
+    uint64_t double_push = (color == WHITE)
+        ? (((pawns & start_rank) << 16) & empty & (empty << 8))
+        : (((pawns & start_rank) >> 16) & empty & (empty >> 8));
+
+    for(int dest = 0; dest < 64; ++dest) {
+        if(!(double_push & (1ULL << dest))) continue;
+        moves.push_back({dest - 2 * push, dest, -1, DOUBLE_PAWN_PUSH});
+    }
+
+    //Captures: file-1 diagonal and file+1 diagonal
+    int cap_minus_shift = (color == WHITE) ? 7 : -9; //file-1
+    int cap_plus_shift  = (color == WHITE) ? 9 : -7; //file+1
+
+    uint64_t cap_minus_targets = (color == WHITE) ? ((pawns & ~file_A) << 7) : ((pawns & ~file_A) >> 9);
+    uint64_t cap_plus_targets  = (color == WHITE) ? ((pawns & ~file_H) << 9) : ((pawns & ~file_H) >> 7);
+
+    uint64_t cap_minus_hits = cap_minus_targets & enemy;
+    uint64_t cap_plus_hits  = cap_plus_targets & enemy;
+
+    for(int dest = 0; dest < 64; ++dest) {
+        if(cap_minus_hits & (1ULL << dest)) addPawnMove(moves, dest - cap_minus_shift, dest, promotion_rank, CAPTURE);
+        if(cap_plus_hits & (1ULL << dest)) addPawnMove(moves, dest - cap_plus_shift, dest, promotion_rank, CAPTURE);
+    }
+
+    //En passant
+    if(ep_bb & cap_minus_targets) {
+        moves.push_back({board.en_passant_square - cap_minus_shift, board.en_passant_square, -1, CAPTURE | EN_PASSANT});
+    }
+
+    if(ep_bb & cap_plus_targets) {
+        moves.push_back({board.en_passant_square - cap_plus_shift, board.en_passant_square, -1, CAPTURE | EN_PASSANT});
+    }
+
+    return moves;
+}
+
+std::vector<Move> generateKnightMoves(const Board& board) {
+    std::vector<Move> moves;
+
+    int color = board.active_color;
+    uint64_t knights = board.bitboards[KNIGHT][color];
+
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
+
+    while(knights) {
+        int start = __builtin_ctzll(knights);
+        uint64_t knight_mask = knightAttacks(start);
+
+        while(knight_mask) {
+            int end = __builtin_ctzll(knight_mask);
+            
+            Move move;
+            move.start = start;
+            move.end = end;
+            move.promotion = -1;
+            move.flags = 0;
+
+            if((1ULL << end) & enemy_pieces) {
+                move.flags |= CAPTURE;
+            }
+            
+            if(!((1ULL << end) & friendly_pieces)) {
+                moves.push_back(move);
+            }
+
+            knight_mask &= (knight_mask - 1);
+        }
+
+        knights &= (knights - 1);
+    }
+
+    return moves;
+}
+
+std::vector<Move> generateBishopMoves(const Board& board) {
+    std::vector<Move> moves;
+
+    int color = board.active_color;
+    uint64_t bishops = board.bitboards[BISHOP][color];
+
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
+
+    while(bishops) {
+        int start = __builtin_ctzll(bishops);
+
+        //Up-left / Down-left, both file-1: +7, -9 (stop before crossing file A)
+        //Up-right / Down-right, both file+1: +9, -7 (stop before crossing file H)
+        int offsets[4] = {7, -9, 9, -7};
+        uint64_t edge_files[4] = {file_A, file_A, file_H, file_H};
+
+        for(int d = 0; d < 4; ++d) {
+            int offset = offsets[d];
+            uint64_t edge_file = edge_files[d];
+
+            int temp = start;
+            while(true) {
+                if((1ULL << temp) & edge_file) break;
+
+                temp += offset;
+                if(temp < 0 || temp >= 64) break;
+
+                uint64_t mask = (1ULL << temp);
+
+                Move move;
+                move.start = start;
+                move.end = temp;
+                move.promotion = -1;
+                move.flags = 0;
+
+                if(mask & friendly_pieces) {
+                    break;
+                }
+
+                if(mask & enemy_pieces) {
+                    move.flags |= CAPTURE;
+                    moves.push_back(move);
+                    break;
+                }
+
+                moves.push_back(move);
+            }
+        }
+
+        bishops &= (bishops - 1);
+    }
+
+    return moves;
+}
+
+std::vector<Move> generateRookMoves(const Board& board) {
+    std::vector<Move> moves;
+
+    int color = board.active_color;
+    uint64_t rooks = board.bitboards[ROOK][color];
+
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
+
+    while(rooks) {
+        int start = __builtin_ctzll(rooks);
+
+        //Up, Down: +8, -8 (file never changes, so no file-edge check needed)
+        //Right, Left: +1, -1 (stop before crossing file H / file A)
+        int offsets[4] = {8, -8, 1, -1};
+        uint64_t edge_files[4] = {0ULL, 0ULL, file_H, file_A};
+
+        for(int d = 0; d < 4; ++d) {
+            int offset = offsets[d];
+            uint64_t edge_file = edge_files[d];
+
+            int temp = start;
+            while(true) {
+                if((1ULL << temp) & edge_file) break;
+
+                temp += offset;
+                if(temp < 0 || temp >= 64) break;
+
+                uint64_t mask = (1ULL << temp);
+
+                Move move;
+                move.start = start;
+                move.end = temp;
+                move.promotion = -1;
+                move.flags = 0;
+
+                if(mask & friendly_pieces) {
+                    break;
+                }
+
+                if(mask & enemy_pieces) {
+                    move.flags |= CAPTURE;
+                    moves.push_back(move);
+                    break;
+                }
+
+                moves.push_back(move);
+            }
+        }
+
+        rooks &= (rooks - 1);
+    }
+
+    return moves;
+}
+
+std::vector<Move> generateQueenMoves(const Board& board) {
+    std::vector<Move> moves;
+
+    int color = board.active_color;
+    uint64_t queens = board.bitboards[QUEEN][color];
+
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
+
+    while(queens) {
+        int start = __builtin_ctzll(queens);
+
+        //Diagonals: +7, -9 (file-1, stop before file A); +9, -7 (file+1, stop before file H)
+        //Straight:  +8, -8 (file never changes); +1 (file+1, stop before file H); -1 (file-1, stop before file A)
+        int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
+        uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
+
+        for(int d = 0; d < 8; ++d) {
+            int offset = offsets[d];
+            uint64_t edge_file = edge_files[d];
+
+            int temp = start;
+            while(true) {
+                if((1ULL << temp) & edge_file) break;
+
+                temp += offset;
+                if(temp < 0 || temp >= 64) break;
+
+                uint64_t mask = (1ULL << temp);
+
+                Move move;
+                move.start = start;
+                move.end = temp;
+                move.promotion = -1;
+                move.flags = 0;
+
+                if(mask & friendly_pieces) {
+                    break;
+                }
+
+                if(mask & enemy_pieces) {
+                    move.flags |= CAPTURE;
+                    moves.push_back(move);
+                    break;
+                }
+
+                moves.push_back(move);
+            }
+        }
+
+        queens &= (queens - 1);
+    }
+
+    return moves;
+}
