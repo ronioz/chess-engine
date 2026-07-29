@@ -1,10 +1,11 @@
 #include "movegen.hpp"
+#include <array>
 
-uint64_t kingAttacks(int square) {
+static uint64_t computeKingAttacks(int square) {
     uint64_t res = 0ULL;
     uint64_t position = (1ULL << square);
 
-    //Bottom 
+    //Bottom
     if(!(position & rank_1)) {
         res |= (position >> 8);
 
@@ -33,7 +34,7 @@ uint64_t kingAttacks(int square) {
     return res;
 }
 
-uint64_t knightAttacks(int square) {
+static uint64_t computeKnightAttacks(int square) {
     uint64_t res = 0ULL;
     uint64_t position = (1ULL << square);
 
@@ -66,6 +67,23 @@ uint64_t knightAttacks(int square) {
     }
 
     return res;
+}
+
+static std::array<uint64_t, 64> buildAttackTable(uint64_t (*compute)(int)) {
+    std::array<uint64_t, 64> table{};
+    for(int square = 0; square < 64; ++square) table[square] = compute(square);
+    return table;
+}
+
+static const std::array<uint64_t, 64> KING_ATTACK_TABLE = buildAttackTable(computeKingAttacks);
+static const std::array<uint64_t, 64> KNIGHT_ATTACK_TABLE = buildAttackTable(computeKnightAttacks);
+
+uint64_t kingAttacks(int square) {
+    return KING_ATTACK_TABLE[square];
+}
+
+uint64_t knightAttacks(int square) {
+    return KNIGHT_ATTACK_TABLE[square];
 }
 
 bool isSquareAttacked(const Board& board, int square, int by_color) {
