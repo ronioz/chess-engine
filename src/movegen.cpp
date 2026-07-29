@@ -68,6 +68,56 @@ uint64_t knightAttacks(int square) {
     return res;
 }
 
+bool isSquareAttacked(const Board& board, int square, int by_color) {
+    if(knightAttacks(square) & board.bitboards[KNIGHT][by_color]) return true;
+    if(kingAttacks(square) & board.bitboards[KING][by_color]) return true;
+
+    uint64_t pawns = board.bitboards[PAWN][by_color];
+    uint64_t pawn_attacks = (by_color == WHITE)
+        ? (((pawns & ~file_A) << 7) | ((pawns & ~file_H) << 9))
+        : (((pawns & ~file_A) >> 9) | ((pawns & ~file_H) >> 7));
+    if(pawn_attacks & (1ULL << square)) return true;
+
+    //Diagonals: +7, -9 (file-1, stop before file A); +9, -7 (file+1, stop before file H)
+    //Straight:  +8, -8 (file never changes); +1 (file+1, stop before file H); -1 (file-1, stop before file A)
+    int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
+    uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
+
+    for(int d = 0; d < 8; ++d) {
+        int offset = offsets[d];
+        uint64_t edge_file = edge_files[d];
+
+        int temp = square;
+        while(true) {
+            if((1ULL << temp) & edge_file) break;
+
+            temp += offset;
+            if(temp < 0 || temp >= 64) break;
+
+            uint64_t mask = (1ULL << temp);
+
+            if(mask & board.all_pieces) {
+                int slider = (d < 4) ? BISHOP : ROOK;
+
+                if((mask & board.bitboards[slider][by_color]) || (mask & board.bitboards[QUEEN][by_color])) {
+                    return true;
+                }
+
+                break;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool isInCheck(const Board& board, int color) {
+    int king_square = __builtin_ctzll(board.bitboards[KING][color]);
+    int enemy_color = (color == WHITE) ? BLACK : WHITE;
+
+    return isSquareAttacked(board, king_square, enemy_color);
+}
+
 static void addPawnMove(std::vector<Move>& moves, int start, int dest, uint64_t promotion_rank, int flags) {
     if((1ULL << dest) & promotion_rank) {
         moves.push_back({start, dest, KNIGHT, flags});
@@ -79,9 +129,7 @@ static void addPawnMove(std::vector<Move>& moves, int start, int dest, uint64_t 
     }
 }
 
-std::vector<Move> generatePawnMoves(const Board& board) {
-    std::vector<Move> moves;
-
+void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
     int color = board.active_color;
     uint64_t pawns = board.bitboards[PAWN][color];
     uint64_t empty = ~board.all_pieces;
@@ -133,13 +181,9 @@ std::vector<Move> generatePawnMoves(const Board& board) {
     if(ep_bb & cap_plus_targets) {
         moves.push_back({board.en_passant_square - cap_plus_shift, board.en_passant_square, -1, CAPTURE | EN_PASSANT});
     }
-
-    return moves;
 }
 
-std::vector<Move> generateKnightMoves(const Board& board) {
-    std::vector<Move> moves;
-
+void generateKnightMoves(const Board& board, std::vector<Move>& moves) {
     int color = board.active_color;
     uint64_t knights = board.bitboards[KNIGHT][color];
 
@@ -172,13 +216,9 @@ std::vector<Move> generateKnightMoves(const Board& board) {
 
         knights &= (knights - 1);
     }
-
-    return moves;
 }
 
-std::vector<Move> generateKingMoves(const Board& board) {
-    std::vector<Move> moves;
-
+void generateKingMoves(const Board& board, std::vector<Move>& moves) {
     int color = board.active_color;
     uint64_t king = board.bitboards[KING][color];
 
@@ -209,30 +249,33 @@ std::vector<Move> generateKingMoves(const Board& board) {
     }
 
     //Castling: rights are cleared whenever the king/rook moves or the rook is captured,
-    //so a set bit already implies both are on their home squares. Whether the king is
-    //currently in or would pass through check is left to legal-move filtering.
+    //so a set bit already implies both are on their home squares. The destination square
+    //is checked by legal-move filtering (post-move isInCheck); the king's current square
+    //and the square it transits are checked here, since nothing else ever re-visits them.
+    int enemy_color = (color == WHITE) ? BLACK : WHITE;
+
     if(color == WHITE) {
-        if((board.castling_rights & 8) && !(board.all_pieces & ((1ULL << 5) | (1ULL << 6)))) {
+        if((board.castling_rights & 8) && !(board.all_pieces & ((1ULL << 5) | (1ULL << 6)))
+           && !isSquareAttacked(board, 4, enemy_color) && !isSquareAttacked(board, 5, enemy_color)) {
             moves.push_back({start, 6, -1, CASTLE});
         }
-        if((board.castling_rights & 4) && !(board.all_pieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3)))) {
+        if((board.castling_rights & 4) && !(board.all_pieces & ((1ULL << 1) | (1ULL << 2) | (1ULL << 3)))
+           && !isSquareAttacked(board, 4, enemy_color) && !isSquareAttacked(board, 3, enemy_color)) {
             moves.push_back({start, 2, -1, CASTLE});
         }
     } else {
-        if((board.castling_rights & 2) && !(board.all_pieces & ((1ULL << 61) | (1ULL << 62)))) {
+        if((board.castling_rights & 2) && !(board.all_pieces & ((1ULL << 61) | (1ULL << 62)))
+           && !isSquareAttacked(board, 60, enemy_color) && !isSquareAttacked(board, 61, enemy_color)) {
             moves.push_back({start, 62, -1, CASTLE});
         }
-        if((board.castling_rights & 1) && !(board.all_pieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59)))) {
+        if((board.castling_rights & 1) && !(board.all_pieces & ((1ULL << 57) | (1ULL << 58) | (1ULL << 59)))
+           && !isSquareAttacked(board, 60, enemy_color) && !isSquareAttacked(board, 59, enemy_color)) {
             moves.push_back({start, 58, -1, CASTLE});
         }
     }
-
-    return moves;
 }
 
-std::vector<Move> generateBishopMoves(const Board& board) {
-    std::vector<Move> moves;
-
+void generateBishopMoves(const Board& board, std::vector<Move>& moves) {
     int color = board.active_color;
     uint64_t bishops = board.bitboards[BISHOP][color];
 
@@ -282,13 +325,9 @@ std::vector<Move> generateBishopMoves(const Board& board) {
 
         bishops &= (bishops - 1);
     }
-
-    return moves;
 }
 
-std::vector<Move> generateRookMoves(const Board& board) {
-    std::vector<Move> moves;
-
+void generateRookMoves(const Board& board, std::vector<Move>& moves) {
     int color = board.active_color;
     uint64_t rooks = board.bitboards[ROOK][color];
 
@@ -338,13 +377,9 @@ std::vector<Move> generateRookMoves(const Board& board) {
 
         rooks &= (rooks - 1);
     }
-
-    return moves;
 }
 
-std::vector<Move> generateQueenMoves(const Board& board) {
-    std::vector<Move> moves;
-
+void generateQueenMoves(const Board& board, std::vector<Move>& moves) {
     int color = board.active_color;
     uint64_t queens = board.bitboards[QUEEN][color];
 
@@ -394,6 +429,146 @@ std::vector<Move> generateQueenMoves(const Board& board) {
 
         queens &= (queens - 1);
     }
+}
 
-    return moves;
+void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves) {
+    generatePawnMoves(board, moves);
+    generateKnightMoves(board, moves);
+    generateKingMoves(board, moves);
+    generateBishopMoves(board, moves);
+    generateRookMoves(board, moves);
+    generateQueenMoves(board, moves);
+}
+
+//Squares/pieces relevant to whether the side to move's king is safe, computed once
+//per node instead of once per candidate move. checkers_count >= 2 means only king
+//moves can be legal; check_mask (valid when checkers_count == 1) is the set of
+//squares a non-king move must land on to capture or block the sole checker; pinned
+//marks friendly pieces pinned to the king, and pin_ray[sq] is the only line a piece
+//pinned on sq may move along without exposing the king.
+struct CheckInfo {
+    int checkers_count = 0;
+    uint64_t check_mask = ~0ULL;
+    uint64_t pinned = 0ULL;
+    uint64_t pin_ray[64] = {};
+};
+
+static CheckInfo computeCheckInfo(const Board& board, int color) {
+    CheckInfo info;
+
+    int king_square = __builtin_ctzll(board.bitboards[KING][color]);
+    int enemy_color = (color == WHITE) ? BLACK : WHITE;
+    uint64_t king_bb = 1ULL << king_square;
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+
+    //Knight/pawn checks can only be resolved by capturing the checker, never by blocking.
+    uint64_t knight_checkers = knightAttacks(king_square) & board.bitboards[KNIGHT][enemy_color];
+    if(knight_checkers) {
+        info.checkers_count++;
+        info.check_mask = knight_checkers;
+    }
+
+    uint64_t enemy_pawns = board.bitboards[PAWN][enemy_color];
+    uint64_t pawn_checkers = (enemy_color == WHITE)
+        ? (((king_bb >> 7) & enemy_pawns & ~file_A) | ((king_bb >> 9) & enemy_pawns & ~file_H))
+        : (((king_bb << 9) & enemy_pawns & ~file_A) | ((king_bb << 7) & enemy_pawns & ~file_H));
+    if(pawn_checkers) {
+        info.checkers_count++;
+        info.check_mask = pawn_checkers;
+    }
+
+    //Sliding checkers and pins: walk each ray outward from the king. The first
+    //occupied square is either an enemy slider (check) or a friendly piece (possibly
+    //pinned, if a matching enemy slider is the very next occupied square on the ray).
+    int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
+    uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
+
+    for(int d = 0; d < 8; ++d) {
+        int offset = offsets[d];
+        uint64_t edge_file = edge_files[d];
+        int slider_type = (d < 4) ? BISHOP : ROOK;
+
+        uint64_t ray = 0ULL;
+        int blocker_square = -1;
+        int temp = king_square;
+
+        while(true) {
+            if((1ULL << temp) & edge_file) break;
+
+            temp += offset;
+            if(temp < 0 || temp >= 64) break;
+
+            uint64_t mask = (1ULL << temp);
+            ray |= mask;
+
+            if(!(mask & board.all_pieces)) continue;
+
+            bool enemy_slider = (mask & board.bitboards[slider_type][enemy_color]) || (mask & board.bitboards[QUEEN][enemy_color]);
+
+            if(blocker_square == -1) {
+                if(mask & friendly_pieces) {
+                    blocker_square = temp;
+                    continue;
+                }
+
+                if(enemy_slider) {
+                    info.checkers_count++;
+                    info.check_mask = ray;
+                }
+
+                break;
+            }
+
+            if(enemy_slider) {
+                info.pinned |= (1ULL << blocker_square);
+                info.pin_ray[blocker_square] = ray;
+            }
+
+            break;
+        }
+    }
+
+    return info;
+}
+
+std::vector<Move> generateLegalMoves(Board& board) {
+    std::vector<Move> pseudoLegalMoves;
+    pseudoLegalMoves.reserve(48);
+    generatePseudoLegalMoves(board, pseudoLegalMoves);
+
+    std::vector<Move> legalMoves;
+    legalMoves.reserve(pseudoLegalMoves.size());
+
+    int mover = board.active_color;
+    uint64_t king_bb = board.bitboards[KING][mover];
+    CheckInfo info = computeCheckInfo(board, mover);
+
+    for(const auto& move : pseudoLegalMoves) {
+        uint64_t start_bb = (1ULL << move.start);
+        bool is_king_move = (start_bb & king_bb) != 0;
+        bool is_en_passant = (move.flags & EN_PASSANT) != 0;
+
+        if(is_king_move || is_en_passant) {
+            //King moves (incl. castling) and en passant have edge cases the mask
+            //shortcuts below don't model - a king retreating along the very ray
+            //it's checked on, and the rare horizontal discovered check when both
+            //en passant pawns vanish at once - so they're verified via make/unmake.
+            UndoState state = board.makeMove(move);
+            if(!isInCheck(board, mover)) legalMoves.push_back(move);
+            board.unmakeMove(state);
+            continue;
+        }
+
+        if(info.checkers_count >= 2) continue; //double check: only the king can move
+
+        uint64_t dest_bb = (1ULL << move.end);
+
+        if(info.checkers_count == 1 && !(dest_bb & info.check_mask)) continue; //must capture/block the checker
+
+        if((info.pinned & start_bb) && !(dest_bb & info.pin_ray[move.start])) continue; //pinned piece must stay on the pin ray
+
+        legalMoves.push_back(move);
+    }
+
+    return legalMoves;
 }

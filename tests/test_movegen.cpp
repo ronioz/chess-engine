@@ -108,7 +108,8 @@ void test_pawn_start_position() {
     Board board;
     from_FEN(board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 16); // 8 single pushes + 8 double pushes
 
     int singlePushCount = 0, doublePushCount = 0;
@@ -124,7 +125,8 @@ void test_pawn_promotion_push_and_capture() {
     Board board;
     from_FEN(board, "1r2k3/P7/8/8/8/8/8/K7 w - - 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 8);
 
     int a7 = 6 * 8 + 0; // a7
@@ -145,7 +147,8 @@ void test_pawn_en_passant() {
     Board board;
     from_FEN(board, "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 2);
 
     int e5 = 4 * 8 + 4; // e5
@@ -160,7 +163,8 @@ void test_pawn_blocked_push() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/4n3/4P3/4K3 w - - 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.empty());
 }
 
@@ -168,7 +172,8 @@ void test_pawn_file_edge_no_wraparound() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/n7/7P/4K3 w - - 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 2);
 
     int h2 = 1 * 8 + 7; // h2
@@ -185,7 +190,8 @@ void test_black_pawn_start_position() {
     Board board;
     from_FEN(board, "4k3/pppppppp/8/8/8/8/8/4K3 b - - 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 16);
 }
 
@@ -193,7 +199,8 @@ void test_black_pawn_promotion_and_capture() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/8/p7/1R2K3 b - - 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 8);
 
     int a2 = 1 * 8 + 0; // a2
@@ -208,7 +215,8 @@ void test_black_pawn_en_passant() {
     Board board;
     from_FEN(board, "4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1");
 
-    auto moves = generatePawnMoves(board);
+    std::vector<Move> moves;
+    generatePawnMoves(board, moves);
     assert(moves.size() == 2);
 
     int e4 = 3 * 8 + 4; // e4
@@ -225,7 +233,8 @@ void test_knight_moves_occupancy() {
     Board board;
     from_FEN(board, "4k3/8/2p5/5P2/3N4/8/8/4K3 w - - 0 1");
 
-    auto moves = generateKnightMoves(board);
+    std::vector<Move> moves;
+    generateKnightMoves(board, moves);
     assert(moves.size() == 7); // 8 geometric targets minus the own-piece square f5
 
     int d4 = 3 * 8 + 3; // d4
@@ -234,6 +243,64 @@ void test_knight_moves_occupancy() {
 
     for(const Move& m : moves) assert(m.end != f5);
     assert(hasMove(moves, d4, c6, -1, CAPTURE));
+}
+
+//[KING MOVES]
+
+void test_king_moves_occupancy() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/2p1n3/3K4/8 w - - 0 1");
+
+    std::vector<Move> moves;
+    generateKingMoves(board, moves);
+
+    int d2 = 1 * 8 + 3; // d2
+    int c3 = 2 * 8 + 2; // c3 (enemy pawn, must be a flagged capture)
+    int e3 = 2 * 8 + 4; // e3 (enemy knight, must be a flagged capture)
+
+    assert(hasMove(moves, d2, c3, -1, CAPTURE));
+    assert(hasMove(moves, d2, e3, -1, CAPTURE));
+}
+
+void test_king_castling_requires_rights() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/4K2R w - - 0 1"); // rook present, but no castling rights
+
+    std::vector<Move> moves;
+    generateKingMoves(board, moves);
+
+    for(const Move& m : moves) assert(!(m.flags & CASTLE));
+}
+
+void test_king_castling_requires_empty_squares() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/4KB1R w K - 0 1"); // bishop on f1 blocks kingside castle
+
+    std::vector<Move> moves;
+    generateKingMoves(board, moves);
+
+    for(const Move& m : moves) assert(!(m.flags & CASTLE));
+}
+
+void test_king_castling_available_when_clear() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/4K2R w K - 0 1");
+
+    std::vector<Move> moves;
+    generateKingMoves(board, moves);
+
+    int e1 = 4, g1 = 6;
+    assert(hasMove(moves, e1, g1, -1, CASTLE));
+}
+
+void test_king_castling_blocked_by_attacked_transit_square() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/5r2/8/4K2R w K - 0 1"); // black rook on f3 attacks f1, the transit square
+
+    std::vector<Move> moves;
+    generateKingMoves(board, moves);
+
+    for(const Move& m : moves) assert(!(m.flags & CASTLE));
 }
 
 //[BISHOP MOVES]
@@ -250,7 +317,9 @@ void test_bishop_moves_empty_board() {
         std::set<int> expected;
         expectedBishopSquares(sq, expected);
 
-        assert(moveEnds(generateBishopMoves(board)) == expected);
+        std::vector<Move> moves;
+        generateBishopMoves(board, moves);
+        assert(moveEnds(moves) == expected);
     }
 }
 
@@ -258,7 +327,8 @@ void test_bishop_blockers_and_capture() {
     Board board;
     from_FEN(board, "4k3/8/1p3p2/8/3B4/8/8/4K3 w - - 0 1");
 
-    auto moves = generateBishopMoves(board);
+    std::vector<Move> moves;
+    generateBishopMoves(board, moves);
     assert(moves.size() == 10);
 
     int d4 = 3 * 8 + 3; // d4
@@ -279,7 +349,8 @@ void test_bishop_corner_no_wraparound() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/8/8/B3K3 w - - 0 1");
 
-    auto moves = generateBishopMoves(board);
+    std::vector<Move> moves;
+    generateBishopMoves(board, moves);
     assert(moves.size() == 7); // only the b2-h8 diagonal is open
 
     int h1 = 0 * 8 + 7; // h1: the wraparound bug used to produce this as a false target
@@ -300,7 +371,9 @@ void test_rook_moves_empty_board() {
         std::set<int> expected;
         expectedRookSquares(sq, expected);
 
-        assert(moveEnds(generateRookMoves(board)) == expected);
+        std::vector<Move> moves;
+        generateRookMoves(board, moves);
+        assert(moveEnds(moves) == expected);
     }
 }
 
@@ -308,7 +381,8 @@ void test_rook_file_a_vertical_movement() {
     Board board;
     from_FEN(board, "4k3/8/8/8/R7/8/8/4K3 w - - 0 1");
 
-    auto moves = generateRookMoves(board);
+    std::vector<Move> moves;
+    generateRookMoves(board, moves);
     assert(moves.size() == 14); // 7 vertical (a-file) + 7 horizontal (rank 4)
 }
 
@@ -316,7 +390,8 @@ void test_rook_left_no_wraparound() {
     Board board;
     from_FEN(board, "4k3/8/8/8/3R4/8/8/4K3 w - - 0 1");
 
-    auto moves = generateRookMoves(board);
+    std::vector<Move> moves;
+    generateRookMoves(board, moves);
     assert(moves.size() == 14);
 
     int h3 = 2 * 8 + 7; // h3: the wraparound bug used to produce this as a false target
@@ -327,7 +402,8 @@ void test_rook_blockers_and_capture() {
     Board board;
     from_FEN(board, "4k3/8/3P4/8/1p1R4/8/8/4K3 w - - 0 1");
 
-    auto moves = generateRookMoves(board);
+    std::vector<Move> moves;
+    generateRookMoves(board, moves);
     assert(moves.size() == 10);
 
     int d4 = 3 * 8 + 3; // d4
@@ -352,7 +428,9 @@ void test_queen_moves_empty_board() {
         std::set<int> expected;
         expectedQueenSquares(sq, expected);
 
-        assert(moveEnds(generateQueenMoves(board)) == expected);
+        std::vector<Move> moves;
+        generateQueenMoves(board, moves);
+        assert(moveEnds(moves) == expected);
     }
 }
 
@@ -360,7 +438,8 @@ void test_queen_mixed_blockers_and_capture() {
     Board board;
     from_FEN(board, "4k3/8/3P1p2/8/1r1Q4/8/8/4K3 w - - 0 1");
 
-    auto moves = generateQueenMoves(board);
+    std::vector<Move> moves;
+    generateQueenMoves(board, moves);
     assert(moves.size() == 21);
 
     int d4 = 3 * 8 + 3; // d4
@@ -369,6 +448,127 @@ void test_queen_mixed_blockers_and_capture() {
 
     assert(hasMove(moves, d4, b4, -1, CAPTURE));
     assert(hasMove(moves, d4, f6, -1, CAPTURE));
+}
+
+//[SQUARE ATTACKED / CHECK DETECTION]
+
+void test_is_square_attacked_by_rook() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/R3K3 w - - 0 1"); // white rook a1, white king e1
+
+    int a4 = 3 * 8 + 0; // a4: same file as the rook, unobstructed, must be attacked
+    int d1 = 0 * 8 + 3; // d1: same rank, between rook and king, unobstructed, must be attacked
+    int h1 = 0 * 8 + 7; // h1: same rank, but blocked by the king on e1, must not be attacked
+    int h8 = 7 * 8 + 7; // h8: neither file nor rank shared, must not be attacked
+
+    assert(isSquareAttacked(board, a4, WHITE));
+    assert(isSquareAttacked(board, d1, WHITE));
+    assert(!isSquareAttacked(board, h1, WHITE));
+    assert(!isSquareAttacked(board, h8, WHITE));
+}
+
+void test_is_square_attacked_blocked_by_piece() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/4p3/8/4R3 w - - 0 1"); // black pawn on e3 blocks the rook's e-file ray
+
+    int e5 = 4 * 8 + 4; // e5: beyond the blocker, must not be attacked
+    int e2 = 1 * 8 + 4; // e2: between rook and blocker, must be attacked
+
+    assert(!isSquareAttacked(board, e5, WHITE));
+    assert(isSquareAttacked(board, e2, WHITE));
+}
+
+void test_is_in_check_true() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/r3K3 w - - 0 1"); // black rook on a1 checks white king on e1
+
+    assert(isInCheck(board, WHITE));
+}
+
+void test_is_in_check_false() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+
+    assert(!isInCheck(board, WHITE));
+}
+
+//[LEGAL MOVE FILTERING: pins, checks, castling, en passant]
+//Expected counts below were cross-checked against a naive make-every-move-and-verify
+//reference implementation before being hardcoded here.
+
+void test_legal_moves_pinned_piece_restricted_to_pin_ray() {
+    Board board;
+    from_FEN(board, "4r3/8/8/8/8/8/4R3/4K3 w - - 0 1"); // white rook e2 pinned by black rook e8
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 10);
+
+    int e2 = 1 * 8 + 4;
+    int d2 = 1 * 8 + 3; // off the pin ray, must not be reachable
+
+    for(const Move& m : moves) {
+        if(m.start == e2) assert(m.end != d2);
+    }
+}
+
+void test_legal_moves_single_check_must_capture_or_block() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/r3K3 w - - 0 1"); // black rook a1 checks white king e1 along rank 1
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 3);
+}
+
+void test_legal_moves_double_check_only_king_moves() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/2n5/8/r3K3 w - - 0 1"); // white king e1 checked by both black knight c3 and black rook a1
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 2);
+
+    int e1 = 4;
+    for(const Move& m : moves) assert(m.start == e1);
+}
+
+void test_legal_moves_castling_through_check_excluded() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/5r2/8/4K2R w K - 0 1"); // black rook f3 attacks f1, the castling transit square
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 12);
+    for(const Move& m : moves) assert(!(m.flags & CASTLE));
+}
+
+void test_legal_moves_normal_castling_available() {
+    Board board;
+    from_FEN(board, "4k3/8/8/8/8/8/8/4K2R w K - 0 1");
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 15);
+
+    int e1 = 4, g1 = 6;
+    assert(hasMove(moves, e1, g1, -1, CASTLE));
+}
+
+void test_legal_moves_en_passant_discovered_check_excluded() {
+    Board board;
+    // White king a5, black pawn d5, white pawn e5, black rook h5, en passant square d6.
+    // Capturing en passant (e5xd6) empties both d5 and e5, opening the whole rank to the
+    // black rook and exposing the white king - so that capture must not appear as legal.
+    from_FEN(board, "8/8/8/K2pP2r/8/8/8/4k3 w - d6 0 1");
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 6);
+
+    for(const Move& m : moves) assert(!(m.flags & EN_PASSANT));
+}
+
+void test_legal_moves_start_position_count() {
+    Board board;
+    from_FEN(board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    assert(moves.size() == 20);
 }
 
 int main() {
@@ -386,6 +586,12 @@ int main() {
 
     test_knight_moves_occupancy();
 
+    test_king_moves_occupancy();
+    test_king_castling_requires_rights();
+    test_king_castling_requires_empty_squares();
+    test_king_castling_available_when_clear();
+    test_king_castling_blocked_by_attacked_transit_square();
+
     test_bishop_moves_empty_board();
     test_bishop_blockers_and_capture();
     test_bishop_corner_no_wraparound();
@@ -397,6 +603,19 @@ int main() {
 
     test_queen_moves_empty_board();
     test_queen_mixed_blockers_and_capture();
+
+    test_is_square_attacked_by_rook();
+    test_is_square_attacked_blocked_by_piece();
+    test_is_in_check_true();
+    test_is_in_check_false();
+
+    test_legal_moves_pinned_piece_restricted_to_pin_ray();
+    test_legal_moves_single_check_must_capture_or_block();
+    test_legal_moves_double_check_only_king_moves();
+    test_legal_moves_castling_through_check_excluded();
+    test_legal_moves_normal_castling_available();
+    test_legal_moves_en_passant_discovered_check_excluded();
+    test_legal_moves_start_position_count();
 
     printf("test_movegen: all tests passed\n");
     return 0;
