@@ -58,6 +58,8 @@ public:
 
     UndoState makeMove(const Move& move);
     void unmakeMove(const UndoState& state);
+    void setPiece(int piece, int color, int sq);
+    void clearPiece(int piece, int color, int sq);
 
     /*
     Zobrist Hashing

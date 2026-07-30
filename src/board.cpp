@@ -126,55 +126,53 @@ UndoState Board::makeMove(const Move& move) {
     state.zobrist_key = zobrist_key;
 
     if(captured_piece != -1) {
-        bitboards[captured_piece][enemy_color] &= ~(1ULL << end);
+        clearPiece(captured_piece, enemy_color, end);
         zobrist_key ^= zobrist_pieces[captured_piece][enemy_color][end]; 
     }
 
     if(move.flags & EN_PASSANT) {
         int captured_square = (active_color == WHITE) ? end - 8 : end + 8;
-        bitboards[PAWN][enemy_color] &= ~(1ULL << captured_square);
+        clearPiece(PAWN, enemy_color, captured_square);
         zobrist_key ^= zobrist_pieces[PAWN][enemy_color][captured_square];
         captured_piece = PAWN;
         state.captured_piece = PAWN;
     }
 
-    bitboards[moved_piece][active_color] &= ~(1ULL << start);
+    clearPiece(moved_piece, active_color, start);
     zobrist_key ^= zobrist_pieces[moved_piece][active_color][start];
-    bitboards[moved_piece][active_color] |= (1ULL << end);
+    setPiece(moved_piece, active_color, end);
     zobrist_key ^= zobrist_pieces[moved_piece][active_color][end];
 
     if(move.promotion != -1) {
-        bitboards[moved_piece][active_color] &= ~(1ULL << end);
+        clearPiece(moved_piece, active_color, end);
         zobrist_key ^= zobrist_pieces[moved_piece][active_color][end];
-        bitboards[move.promotion][active_color] |= (1ULL << end);
+        setPiece(move.promotion, active_color, end);
         zobrist_key ^= zobrist_pieces[move.promotion][active_color][end];
     }
 
     if(moved_piece == KING && (move.flags & CASTLE)) {
         if(end == 6) {
-            bitboards[ROOK][WHITE] &= ~(1ULL << 7);
+            clearPiece(ROOK, WHITE, 7);
             zobrist_key ^= zobrist_pieces[ROOK][WHITE][7];
-            bitboards[ROOK][WHITE] |= (1ULL << 5);
+            setPiece(ROOK, WHITE, 5);
             zobrist_key ^= zobrist_pieces[ROOK][WHITE][5];
         } else if (end == 2) {
-            bitboards[ROOK][WHITE] &= ~(1ULL << 0);
+            clearPiece(ROOK, WHITE, 0);
             zobrist_key ^= zobrist_pieces[ROOK][WHITE][0];
-            bitboards[ROOK][WHITE] |= (1ULL << 3);
+            setPiece(ROOK, WHITE, 3);
             zobrist_key ^= zobrist_pieces[ROOK][WHITE][3];
         } else if (end == 62) {
-            bitboards[ROOK][BLACK] &= ~(1ULL << 63);
+            clearPiece(ROOK, BLACK, 63);
             zobrist_key ^= zobrist_pieces[ROOK][BLACK][63];
-            bitboards[ROOK][BLACK] |= (1ULL << 61);
+            setPiece(ROOK, BLACK, 61);
             zobrist_key ^= zobrist_pieces[ROOK][BLACK][61];
         } else {
-            bitboards[ROOK][BLACK] &= ~(1ULL << 56);
+            clearPiece(ROOK, BLACK, 56);
             zobrist_key ^= zobrist_pieces[ROOK][BLACK][56];
-            bitboards[ROOK][BLACK] |= (1ULL << 59);
+            setPiece(ROOK, BLACK, 59);
             zobrist_key ^= zobrist_pieces[ROOK][BLACK][59];
         }
     }
-
-    updateBitboards();
 
     if(moved_piece == KING) {
         if(active_color == WHITE) {
@@ -256,39 +254,52 @@ void Board::unmakeMove(const UndoState& state) {
 
     if(state.move.flags & CASTLE) {
         if(state.move.end == 6) {
-            bitboards[ROOK][WHITE] &= ~(1ULL << 5);
-            bitboards[ROOK][WHITE] |= (1ULL << 7);
+            clearPiece(ROOK, WHITE, 5);
+            setPiece(ROOK, WHITE, 7);
         } else if(state.move.end == 2) {
-            bitboards[ROOK][WHITE] &= ~(1ULL << 3);
-            bitboards[ROOK][WHITE] |= (1ULL << 0);
+            clearPiece(ROOK, WHITE, 3);
+            setPiece(ROOK, WHITE, 0);
         } else if(state.move.end == 62) {
-            bitboards[ROOK][BLACK] &= ~(1ULL << 61);
-            bitboards[ROOK][BLACK] |= (1ULL << 63);
+            clearPiece(ROOK, BLACK, 61);
+            setPiece(ROOK, BLACK, 63);
         } else {
-            bitboards[ROOK][BLACK] &= ~(1ULL << 59);
-            bitboards[ROOK][BLACK] |= (1ULL << 56);
+            clearPiece(ROOK, BLACK, 59);
+            setPiece(ROOK, BLACK, 56);
         }
     }
 
     if(state.move.promotion != -1) {
-        bitboards[state.move.promotion][active_color] &= ~(1ULL << state.move.end);
+        clearPiece(state.move.promotion, active_color, state.move.end);
     }
 
-    bitboards[state.moved_piece][active_color] &= ~(1ULL << state.move.end);
-    bitboards[state.moved_piece][active_color] |= (1ULL << state.move.start);
+    clearPiece(state.moved_piece, active_color, state.move.end);
+    setPiece(state.moved_piece, active_color, state.move.start);
 
     if(state.move.flags & EN_PASSANT) {
         int captured_square = (active_color == WHITE) ? state.move.end - 8 : state.move.end + 8;
-        bitboards[PAWN][enemy_color] |= (1ULL << captured_square);
+        setPiece(PAWN, enemy_color, captured_square);
     } else if(state.captured_piece != -1) {
-        bitboards[state.captured_piece][enemy_color] |= (1ULL << state.move.end);
+        setPiece(state.captured_piece, enemy_color, state.move.end);
     }
 
-    updateBitboards();
     castling_rights = state.castling_rights;
     en_passant_square = state.en_passant_square;
     halfmove_clock = state.halfmove_clock;
     zobrist_key = state.zobrist_key;
+}
+
+void Board::setPiece(int piece, int color, int sq) {
+    uint64_t mask = 1ULL << sq;
+    bitboards[piece][color] |= mask;
+    (color == WHITE ? white_pieces : black_pieces) |= mask;
+    all_pieces |= mask;
+}
+
+void Board::clearPiece(int piece, int color, int sq) {
+    uint64_t mask = ~(1ULL << sq);
+    bitboards[piece][color] &= mask;
+    (color == WHITE ? white_pieces : black_pieces) &= mask;
+    all_pieces &= mask;
 }
 
 void Board::initZobrist() {
