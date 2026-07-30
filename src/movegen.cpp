@@ -161,9 +161,10 @@ void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
     //Single push
     uint64_t single_push = (color == WHITE) ? ((pawns << 8) & empty) : ((pawns >> 8) & empty);
 
-    for(int dest = 0; dest < 64; ++dest) {
-        if(!(single_push & (1ULL << dest))) continue;
+    while(single_push) {
+        int dest = __builtin_ctzll(single_push);
         addPawnMove(moves, dest - push, dest, promotion_rank, 0);
+        single_push &= (single_push - 1);
     }
 
     //Double push (both the intermediate square and destination must be empty)
@@ -171,9 +172,10 @@ void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
         ? (((pawns & start_rank) << 16) & empty & (empty << 8))
         : (((pawns & start_rank) >> 16) & empty & (empty >> 8));
 
-    for(int dest = 0; dest < 64; ++dest) {
-        if(!(double_push & (1ULL << dest))) continue;
+    while(double_push) {
+        int dest = __builtin_ctzll(double_push);
         moves.push_back({dest - 2 * push, dest, -1, DOUBLE_PAWN_PUSH});
+        double_push &= (double_push - 1);
     }
 
     //Captures: file-1 diagonal and file+1 diagonal
@@ -186,9 +188,16 @@ void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
     uint64_t cap_minus_hits = cap_minus_targets & enemy;
     uint64_t cap_plus_hits  = cap_plus_targets & enemy;
 
-    for(int dest = 0; dest < 64; ++dest) {
-        if(cap_minus_hits & (1ULL << dest)) addPawnMove(moves, dest - cap_minus_shift, dest, promotion_rank, CAPTURE);
-        if(cap_plus_hits & (1ULL << dest)) addPawnMove(moves, dest - cap_plus_shift, dest, promotion_rank, CAPTURE);
+    while(cap_minus_hits) {
+        int dest = __builtin_ctzll(cap_minus_hits);
+        addPawnMove(moves, dest - cap_minus_shift, dest, promotion_rank, CAPTURE);
+        cap_minus_hits &= (cap_minus_hits - 1);
+    }
+
+    while(cap_plus_hits) {
+        int dest = __builtin_ctzll(cap_plus_hits);
+        addPawnMove(moves, dest - cap_plus_shift, dest, promotion_rank, CAPTURE);
+        cap_plus_hits &= (cap_plus_hits - 1);
     }
 
     //En passant
@@ -294,159 +303,21 @@ void generateKingMoves(const Board& board, std::vector<Move>& moves) {
 }
 
 void generateBishopMoves(const Board& board, std::vector<Move>& moves) {
-    int color = board.active_color;
-    uint64_t bishops = board.bitboards[BISHOP][color];
-
-    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
-    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
-
-    while(bishops) {
-        int start = __builtin_ctzll(bishops);
-
-        //Up-left / Down-left, both file-1: +7, -9 (stop before crossing file A)
-        //Up-right / Down-right, both file+1: +9, -7 (stop before crossing file H)
-        int offsets[4] = {7, -9, 9, -7};
-        uint64_t edge_files[4] = {file_A, file_A, file_H, file_H};
-
-        for(int d = 0; d < 4; ++d) {
-            int offset = offsets[d];
-            uint64_t edge_file = edge_files[d];
-
-            int temp = start;
-            while(true) {
-                if((1ULL << temp) & edge_file) break;
-
-                temp += offset;
-                if(temp < 0 || temp >= 64) break;
-
-                uint64_t mask = (1ULL << temp);
-
-                Move move;
-                move.start = start;
-                move.end = temp;
-                move.promotion = -1;
-                move.flags = 0;
-
-                if(mask & friendly_pieces) {
-                    break;
-                }
-
-                if(mask & enemy_pieces) {
-                    move.flags |= CAPTURE;
-                    moves.push_back(move);
-                    break;
-                }
-
-                moves.push_back(move);
-            }
-        }
-
-        bishops &= (bishops - 1);
-    }
+    static constexpr int offsets[4] = {7, -9, 9, -7};
+    static constexpr uint64_t edge_files[4] = {file_A, file_A, file_H, file_H};
+    generateSlidingMoves(board, moves, board.bitboards[BISHOP][board.active_color], offsets, edge_files, 4);
 }
 
 void generateRookMoves(const Board& board, std::vector<Move>& moves) {
-    int color = board.active_color;
-    uint64_t rooks = board.bitboards[ROOK][color];
-
-    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
-    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
-
-    while(rooks) {
-        int start = __builtin_ctzll(rooks);
-
-        //Up, Down: +8, -8 (file never changes, so no file-edge check needed)
-        //Right, Left: +1, -1 (stop before crossing file H / file A)
-        int offsets[4] = {8, -8, 1, -1};
-        uint64_t edge_files[4] = {0ULL, 0ULL, file_H, file_A};
-
-        for(int d = 0; d < 4; ++d) {
-            int offset = offsets[d];
-            uint64_t edge_file = edge_files[d];
-
-            int temp = start;
-            while(true) {
-                if((1ULL << temp) & edge_file) break;
-
-                temp += offset;
-                if(temp < 0 || temp >= 64) break;
-
-                uint64_t mask = (1ULL << temp);
-
-                Move move;
-                move.start = start;
-                move.end = temp;
-                move.promotion = -1;
-                move.flags = 0;
-
-                if(mask & friendly_pieces) {
-                    break;
-                }
-
-                if(mask & enemy_pieces) {
-                    move.flags |= CAPTURE;
-                    moves.push_back(move);
-                    break;
-                }
-
-                moves.push_back(move);
-            }
-        }
-
-        rooks &= (rooks - 1);
-    }
+    static constexpr int offsets[4] = {8, -8, 1, -1};
+    static constexpr uint64_t edge_files[4] = {0ULL, 0ULL, file_H, file_A};
+    generateSlidingMoves(board, moves, board.bitboards[ROOK][board.active_color], offsets, edge_files, 4);  
 }
 
 void generateQueenMoves(const Board& board, std::vector<Move>& moves) {
-    int color = board.active_color;
-    uint64_t queens = board.bitboards[QUEEN][color];
-
-    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
-    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
-
-    while(queens) {
-        int start = __builtin_ctzll(queens);
-
-        //Diagonals: +7, -9 (file-1, stop before file A); +9, -7 (file+1, stop before file H)
-        //Straight:  +8, -8 (file never changes); +1 (file+1, stop before file H); -1 (file-1, stop before file A)
-        int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
-        uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
-
-        for(int d = 0; d < 8; ++d) {
-            int offset = offsets[d];
-            uint64_t edge_file = edge_files[d];
-
-            int temp = start;
-            while(true) {
-                if((1ULL << temp) & edge_file) break;
-
-                temp += offset;
-                if(temp < 0 || temp >= 64) break;
-
-                uint64_t mask = (1ULL << temp);
-
-                Move move;
-                move.start = start;
-                move.end = temp;
-                move.promotion = -1;
-                move.flags = 0;
-
-                if(mask & friendly_pieces) {
-                    break;
-                }
-
-                if(mask & enemy_pieces) {
-                    move.flags |= CAPTURE;
-                    moves.push_back(move);
-                    break;
-                }
-
-                moves.push_back(move);
-            }
-        }
-
-        queens &= (queens - 1);
-    }
+    static constexpr int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
+    static constexpr uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
+    generateSlidingMoves(board, moves, board.bitboards[QUEEN][board.active_color], offsets, edge_files, 8);    
 }
 
 void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves) {
@@ -468,7 +339,7 @@ struct CheckInfo {
     int checkers_count = 0;
     uint64_t check_mask = ~0ULL;
     uint64_t pinned = 0ULL;
-    uint64_t pin_ray[64] = {};
+    uint64_t pin_ray[64];
 };
 
 static CheckInfo computeCheckInfo(const Board& board, int color) {
@@ -549,13 +420,11 @@ static CheckInfo computeCheckInfo(const Board& board, int color) {
     return info;
 }
 
-std::vector<Move> generateLegalMoves(Board& board) {
+void generateLegalMoves(Board& board, std::vector<Move>& out) {
+    out.clear();
     std::vector<Move> pseudoLegalMoves;
     pseudoLegalMoves.reserve(48);
     generatePseudoLegalMoves(board, pseudoLegalMoves);
-
-    std::vector<Move> legalMoves;
-    legalMoves.reserve(pseudoLegalMoves.size());
 
     int mover = board.active_color;
     uint64_t king_bb = board.bitboards[KING][mover];
@@ -572,7 +441,7 @@ std::vector<Move> generateLegalMoves(Board& board) {
             //it's checked on, and the rare horizontal discovered check when both
             //en passant pawns vanish at once - so they're verified via make/unmake.
             UndoState state = board.makeMove(move);
-            if(!isInCheck(board, mover)) legalMoves.push_back(move);
+            if(!isInCheck(board, mover)) out.push_back(move);
             board.unmakeMove(state);
             continue;
         }
@@ -585,8 +454,44 @@ std::vector<Move> generateLegalMoves(Board& board) {
 
         if((info.pinned & start_bb) && !(dest_bb & info.pin_ray[move.start])) continue; //pinned piece must stay on the pin ray
 
-        legalMoves.push_back(move);
+        out.push_back(move);
     }
+}
 
-    return legalMoves;
+static void generateSlidingMoves(const Board& board, std::vector<Move>& moves,
+uint64_t pieces, const int* offsets,
+const uint64_t* edge_files, int dir_count) {
+    int color = board.active_color;
+    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
+    uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
+
+    while(pieces) {
+        int start = __builtin_ctzll(pieces);
+
+        for(int d = 0; d < dir_count; ++d) {
+            int offset = offsets[d];
+            uint64_t edge_file = edge_files[d];
+            int temp = start;
+
+            while(true) {
+                if((1ULL << temp) & edge_file) break;
+                temp += offset;
+                if(temp < 0 || temp >= 64) break;
+
+                uint64_t mask = (1ULL << temp);
+                Move move{start, temp, -1, 0};
+
+                if(mask & friendly_pieces) break;
+                if(mask & enemy_pieces) {
+                    move.flags |= CAPTURE;
+                    moves.push_back(move);
+                    break;
+                }
+
+                moves.push_back(move);
+            }
+        }
+
+        pieces &= (pieces - 1);
+    }
 }

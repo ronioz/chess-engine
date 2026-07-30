@@ -500,7 +500,8 @@ void test_legal_moves_pinned_piece_restricted_to_pin_ray() {
     Board board;
     from_FEN(board, "4r3/8/8/8/8/8/4R3/4K3 w - - 0 1"); // white rook e2 pinned by black rook e8
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 10);
 
     int e2 = 1 * 8 + 4;
@@ -515,7 +516,8 @@ void test_legal_moves_single_check_must_capture_or_block() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/8/8/r3K3 w - - 0 1"); // black rook a1 checks white king e1 along rank 1
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 3);
 }
 
@@ -523,7 +525,8 @@ void test_legal_moves_double_check_only_king_moves() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/2n5/8/r3K3 w - - 0 1"); // white king e1 checked by both black knight c3 and black rook a1
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 2);
 
     int e1 = 4;
@@ -534,7 +537,8 @@ void test_legal_moves_castling_through_check_excluded() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/5r2/8/4K2R w K - 0 1"); // black rook f3 attacks f1, the castling transit square
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 12);
     for(const Move& m : moves) assert(!(m.flags & CASTLE));
 }
@@ -543,7 +547,8 @@ void test_legal_moves_normal_castling_available() {
     Board board;
     from_FEN(board, "4k3/8/8/8/8/8/8/4K2R w K - 0 1");
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 15);
 
     int e1 = 4, g1 = 6;
@@ -557,7 +562,8 @@ void test_legal_moves_en_passant_discovered_check_excluded() {
     // black rook and exposing the white king - so that capture must not appear as legal.
     from_FEN(board, "8/8/8/K2pP2r/8/8/8/4k3 w - d6 0 1");
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 6);
 
     for(const Move& m : moves) assert(!(m.flags & EN_PASSANT));
@@ -567,7 +573,8 @@ void test_legal_moves_start_position_count() {
     Board board;
     from_FEN(board, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
     assert(moves.size() == 20);
 }
 

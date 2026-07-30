@@ -7,7 +7,10 @@ uint64_t perft(Board& board, int depth) {
 
     uint64_t res = 0ULL;
 
-    for(const auto& move : generateLegalMoves(board)) {
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
+
+    for(const auto& move : moves) {
         UndoState state = board.makeMove(move);
         res += perft(board, depth-1);
         board.unmakeMove(state);
@@ -22,7 +25,8 @@ void benchmarkPerft(Board& board, int depth) {
     auto startTime = std::chrono::high_resolution_clock::now();
     
     uint64_t totalNodes = 0ULL;
-    auto moves = generateLegalMoves(board);
+    std::vector<Move> moves;
+    generateLegalMoves(board, moves);
 
     for (const auto& move : moves) {
         UndoState state = board.makeMove(move);

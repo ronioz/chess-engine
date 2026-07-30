@@ -31,6 +31,10 @@ void Board::clear() {
     white_pieces = 0ULL;
     black_pieces = 0ULL;
     all_pieces = 0ULL;
+
+    for(int sq = 0; sq < 64; ++sq) {
+        piece_on_square[sq] = -1;
+    }
 }
 
 void Board::setup() {
@@ -50,6 +54,7 @@ void Board::setup() {
 
     updateBitboards();
     initEvalScore();
+    initPieceOnSquare();
 
     active_color = WHITE;
     castling_rights = 15;
@@ -98,24 +103,8 @@ UndoState Board::makeMove(const Move& move) {
     int end = move.end;
     int enemy_color = (active_color == WHITE) ? BLACK : WHITE;
 
-    int moved_piece = -1;
-    int captured_piece = -1;
-
-    for(int p = PAWN; p <= KING; ++p) {
-        if(bitboards[p][active_color] & (1ULL << start)) {
-            moved_piece = p;
-            break;
-        }
-    }
-
-    if(all_pieces & (1ULL << end)) {
-        for(int p = PAWN; p <= KING; ++p) {
-            if(bitboards[p][enemy_color] & (1ULL << end)) {
-                captured_piece = p;
-                break;
-            }
-        }
-    }
+    int moved_piece = piece_on_square[start];
+    int captured_piece = (all_pieces & (1ULL << end)) ? piece_on_square[end] : -1;
 
     UndoState state;
     state.move = move;
@@ -296,6 +285,7 @@ void Board::setPiece(int piece, int color, int sq) {
     bitboards[piece][color] |= mask;
     (color == WHITE ? white_pieces : black_pieces) |= mask;
     all_pieces |= mask;
+    piece_on_square[sq] = piece;
 
     int pst_sq = (color == WHITE) ? sq : (sq ^ 56);
     int delta = piece_value[piece] + piece_pst[piece][pst_sq];
@@ -307,10 +297,28 @@ void Board::clearPiece(int piece, int color, int sq) {
     bitboards[piece][color] &= mask;
     (color == WHITE ? white_pieces : black_pieces) &= mask;
     all_pieces &= mask;
+    piece_on_square[sq] = -1;
 
     int pst_sq = (color == WHITE) ? sq : (sq ^ 56);
     int delta = piece_value[piece] + piece_pst[piece][pst_sq];
     eval_score -= (color == WHITE) ? delta : -delta;
+}
+
+void Board::initPieceOnSquare() {
+    for(int sq = 0; sq < 64; ++sq) {
+        piece_on_square[sq] = -1;
+    }
+
+    for(int p = PAWN; p <= KING; ++p) {
+        for(int c = WHITE; c <= BLACK; ++c) {
+            uint64_t temp = bitboards[p][c];
+            while(temp) {
+                int sq = __builtin_ctzll(temp);
+                piece_on_square[sq] = p;
+                temp &= (temp - 1);
+            }
+        }
+    }
 }
 
 void Board::initEvalScore() {

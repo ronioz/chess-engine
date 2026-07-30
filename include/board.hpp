@@ -26,6 +26,7 @@ public:
     uint64_t white_pieces = 0ULL;
     uint64_t black_pieces = 0ULL;
     uint64_t all_pieces = 0ULL;
+    int piece_on_square[64]; // mailbox, -1 if empty; kept in sync by setPiece/clearPiece
 
     //GAMEPLAY
     int active_color = WHITE;
@@ -61,6 +62,7 @@ public:
     void setPiece(int piece, int color, int sq);
     void clearPiece(int piece, int color, int sq);
     void initEvalScore(); //recomputes eval_score from scratch; call after placing pieces outside setPiece (setup/from_FEN)
+    void initPieceOnSquare(); //recomputes piece_on_square from scratch; call after placing pieces outside setPiece (setup/from_FEN)
 
     /*
     Zobrist Hashing

@@ -3,7 +3,7 @@
 #include "board.hpp"
 #include <vector>
 
-//===== File / rank masks =====
+//File / rank masks
 
 constexpr uint64_t file_A = 0x0101010101010101ULL;
 constexpr uint64_t file_B = 0x0202020202020202ULL;
@@ -25,9 +25,14 @@ uint64_t knightAttacks(int square);
 bool isSquareAttacked(const Board& board, int square, int by_color);
 bool isInCheck(const Board& board, int color);
 
-//Pseudo-legal move generation, per piece type =====
+//Pseudo-legal move generation, per piece type
 //Each appends onto the caller-owned vector instead of returning a new one, so
 //generatePseudoLegalMoves can fill a single buffer rather than allocating one per piece type.
+
+
+static void generateSlidingMoves(const Board& board, std::vector<Move>& moves,
+                                  uint64_t pieces, const int* offsets,
+                                  const uint64_t* edge_files, int dir_count);
 
 void generatePawnMoves(const Board& board, std::vector<Move>& moves);
 void generateKnightMoves(const Board& board, std::vector<Move>& moves);
@@ -39,4 +44,4 @@ void generateQueenMoves(const Board& board, std::vector<Move>& moves);
 //Aggregate move generation
 
 void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves);
-std::vector<Move> generateLegalMoves(Board& board);
+void generateLegalMoves(Board& board, std::vector<Move>& out);

@@ -1,15 +1,30 @@
 #include <search.hpp>
 
+//Per-ply move buffers, reused across calls instead of allocating a fresh vector
+//per node. Indexed by ply rather than shared globally because negamax/quiescence
+//recurse - a parent at ply P is still iterating its own moves while a child at
+//ply P+1 is generating its own, so each ply needs a distinct slot. negamax's ply
+//parameter starts at 1 (see findBestMove), so slot 0 is free for the root's own
+//move list. negamax and quiescence's in-check branch never hold a buffer at the
+//same ply simultaneously (depth==0 in negamax hands off to quiescence before
+//touching move_buffers[ply]), so they safely share move_buffers; quiescence's
+//non-check branch needs a second, separate array since it keeps both the full
+//move list and the filtered capture list alive at once.
+constexpr int MAX_PLY = 128;
+static std::vector<Move> move_buffers[MAX_PLY];
+static std::vector<Move> capture_buffers[MAX_PLY];
+
 void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
     constexpr int values[6] = {100, 290, 310, 500, 900, 0};
+    constexpr int MAX_MOVES = 256;
     int enemy_color = (board.active_color == WHITE) ? BLACK : WHITE;
+    std::array<std::pair<Move, int>, MAX_MOVES> scored;
+    size_t n = legalMoves.size();
 
-    std::vector<std::pair<Move, int>> scored;
-    scored.reserve(legalMoves.size());
-
-    for(const Move& move : legalMoves) {
+    for(int i = 0; i < n; ++i) {
+        Move move = legalMoves[i];
         if(!(move.flags & CAPTURE)) {
-            scored.push_back({move, -1});
+            scored[i] = {move, -1};
             continue;
         }
 
@@ -31,16 +46,16 @@ void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
             }
         }
 
-        scored.push_back({move, (
+        scored[i] = {move, (
             10 * values[captured_piece] - values[moved_piece]
-        )});
+        )};
     }
 
-    std::stable_sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) {
+    std::stable_sort(scored.begin(), scored.begin() + n, [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    for(int i = 0; i < legalMoves.size(); ++i) {
+    for(int i = 0; i < n; ++i) {
         legalMoves[i] = scored[i].first;
     }
 }
@@ -81,7 +96,8 @@ int negamax(Board& board, int alpha, int beta, int depth, int ply) {
         }
     }
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move>& moves = move_buffers[ply];
+    generateLegalMoves(board, moves);
 
     if(moves.empty()) {
         if(isInCheck(board, board.active_color)) {
@@ -132,7 +148,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
     bool in_check = isInCheck(board, board.active_color);
 
     if(in_check) {
-        std::vector<Move> moves = generateLegalMoves(board);
+        std::vector<Move>& moves = move_buffers[ply];
+        generateLegalMoves(board, moves);
+
         if(moves.empty()) {
             return -(MATE_SCORE - ply);
         }
@@ -174,9 +192,10 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
     if(stand_pat > alpha) {
         alpha = stand_pat;
     }
-
-    std::vector<Move> moves = generateLegalMoves(board);
-    std::vector<Move> captures;
+    std::vector<Move>& moves = move_buffers[ply];
+    generateLegalMoves(board, moves);
+    std::vector<Move>& captures = capture_buffers[ply];
+    captures.clear();
 
     for(const Move& move : moves) {
         if((move.flags & CAPTURE)) {
@@ -215,8 +234,10 @@ Move findBestMove(Board& board, int depth) {
         int alpha = INT_MIN + 1;
         int beta = INT_MAX;
         int best_score = INT_MIN;
+        
+        std::vector<Move>& moves = move_buffers[0];
+        generateLegalMoves(board, moves);
 
-        std::vector<Move> moves = generateLegalMoves(board);
         if(has_best) {
             auto it = std::find_if(moves.begin(), moves.end(), [&](const Move& m) {
                 return m.start == res.start && m.end == res.end && m.promotion == res.promotion;
