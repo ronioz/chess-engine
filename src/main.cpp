@@ -26,7 +26,7 @@ static int promotionFromChar(char c) {
 }
 
 int main() {
-    const int SEARCH_DEPTH = 4;
+    const int SEARCH_DEPTH = 5;
 
     Board board;
     board.setup();

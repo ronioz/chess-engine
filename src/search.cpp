@@ -1,5 +1,33 @@
 #include <search.hpp>
 
+void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
+    constexpr int values[6] = {100, 290, 310, 500, 900, 0};
+
+    std::vector<std::pair<Move, int>> scored;
+    scored.reserve(legalMoves.size());
+
+    for(const Move& move : legalMoves) {
+        if(!(move.flags & CAPTURE)) {
+            scored.push_back({move, -1});
+            continue;
+        }
+
+        UndoState state = board.makeMove(move);
+        board.unmakeMove(state);
+        scored.push_back({move, (
+            10 * values[state.captured_piece] - values[state.moved_piece]
+        )});
+    }
+
+    std::stable_sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    for(int i = 0; i < legalMoves.size(); ++i) {
+        legalMoves[i] = scored[i].first;
+    }
+}
+
 int negamax(Board& board, int alpha, int beta, int depth) {
     if(depth == 0) {
         int eval = evaluate_board(board);
@@ -15,6 +43,7 @@ int negamax(Board& board, int alpha, int beta, int depth) {
         return 0; //stalemate
     }
 
+    reorderLegalMoves(board, moves);
     for(const auto& move : moves) {
         UndoState state = board.makeMove(move);
         
