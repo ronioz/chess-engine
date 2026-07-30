@@ -2,6 +2,7 @@
 
 void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
     constexpr int values[6] = {100, 290, 310, 500, 900, 0};
+    int enemy_color = (board.active_color == WHITE) ? BLACK : WHITE;
 
     std::vector<std::pair<Move, int>> scored;
     scored.reserve(legalMoves.size());
@@ -12,10 +13,26 @@ void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
             continue;
         }
 
-        UndoState state = board.makeMove(move);
-        board.unmakeMove(state);
+        int moved_piece = -1;
+        for(int p = PAWN; p <= KING; ++p) {
+            if(board.bitboards[p][board.active_color] & (1ULL << move.start)) {
+                moved_piece = p;
+                break;
+            }
+        }
+
+        int captured_piece = PAWN; //en passant always captures a pawn
+        if(!(move.flags & EN_PASSANT)) {
+            for(int p = PAWN; p <= KING; ++p) {
+                if(board.bitboards[p][enemy_color] & (1ULL << move.end)) {
+                    captured_piece = p;
+                    break;
+                }
+            }
+        }
+
         scored.push_back({move, (
-            10 * values[state.captured_piece] - values[state.moved_piece]
+            10 * values[captured_piece] - values[moved_piece]
         )});
     }
 
@@ -28,10 +45,25 @@ void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
     }
 }
 
-int negamax(Board& board, int alpha, int beta, int depth) {
+//Mate scores are stored ply-independent (distance-to-mate from the node being
+//stored, not from the search root), then re-anchored to the probing node's own
+//ply on lookup. Without this, a mate score cached at one ply and transposed
+//into at a different ply reports the wrong distance to mate.
+static int scoreToTT(int score, int ply) {
+    if(score >= MATE_THRESHOLD) return score + ply;
+    if(score <= -MATE_THRESHOLD) return score - ply;
+    return score;
+}
+
+static int scoreFromTT(int score, int ply) {
+    if(score >= MATE_THRESHOLD) return score - ply;
+    if(score <= -MATE_THRESHOLD) return score + ply;
+    return score;
+}
+
+int negamax(Board& board, int alpha, int beta, int depth, int ply) {
     if(depth == 0) {
-        int eval = evaluate_board(board);
-        return (board.active_color == WHITE) ? eval : -eval;
+        return quiescence(board, alpha, beta, ply, 0);
     }
 
     int original_alpha = alpha;
@@ -39,12 +71,13 @@ int negamax(Board& board, int alpha, int beta, int depth) {
     TTEntry entry;
     bool found = probeTT(board.zobrist_key, entry);
     if(found && entry.depth >= depth) {
+        int tt_score = scoreFromTT(entry.score, ply);
         if(entry.bound == EXACT) {
-            return entry.score;
-        } else if(entry.bound == LOWER && entry.score >= beta) {
-            return entry.score;
-        } else if(entry.bound == UPPER && entry.score <= alpha) {
-            return entry.score;
+            return tt_score;
+        } else if(entry.bound == LOWER && tt_score >= beta) {
+            return tt_score;
+        } else if(entry.bound == UPPER && tt_score <= alpha) {
+            return tt_score;
         }
     }
 
@@ -52,7 +85,7 @@ int negamax(Board& board, int alpha, int beta, int depth) {
 
     if(moves.empty()) {
         if(isInCheck(board, board.active_color)) {
-            return -100000;
+            return -(MATE_SCORE - ply);
         } //checkmate
         return 0; //stalemate
     }
@@ -74,12 +107,12 @@ int negamax(Board& board, int alpha, int beta, int depth) {
     for(const auto& move : moves) {
         UndoState state = board.makeMove(move);
 
-        int score = -negamax(board, -beta, -alpha, depth - 1);
+        int score = -negamax(board, -beta, -alpha, depth - 1, ply + 1);
 
         board.unmakeMove(state);
 
         if(score >= beta) {
-            storeTT(board.zobrist_key, score, depth, LOWER, move);
+            storeTT(board.zobrist_key, scoreToTT(score, ply), depth, LOWER, move);
             return beta;
         }
 
@@ -90,7 +123,87 @@ int negamax(Board& board, int alpha, int beta, int depth) {
     }
 
     int bound = (alpha > original_alpha) ? EXACT : UPPER;
-    storeTT(board.zobrist_key, alpha, depth, bound, best_move);
+    storeTT(board.zobrist_key, scoreToTT(alpha, ply), depth, bound, best_move);
+
+    return alpha;
+}
+
+int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions) {
+    bool in_check = isInCheck(board, board.active_color);
+
+    if(in_check) {
+        std::vector<Move> moves = generateLegalMoves(board);
+        if(moves.empty()) {
+            return -(MATE_SCORE - ply);
+        }
+
+        //Being in check means there is no option to "stand pat" - every legal
+        //reply must be searched, not just captures. Once the extension budget
+        //runs out, fall back to a static eval instead of silently dropping
+        //non-capture evasions (the old behavior here).
+        if(check_extensions >= MAX_CHECK_EXTENSIONS) {
+            int eval = evaluate_board(board);
+            return (board.active_color == WHITE) ? eval : -eval;
+        }
+
+        reorderLegalMoves(board, moves);
+
+        for(const Move& move : moves) {
+            UndoState state = board.makeMove(move);
+            int score = -quiescence(board, -beta, -alpha, ply + 1, check_extensions + 1);
+            board.unmakeMove(state);
+
+            if(score >= beta) {
+                return beta;
+            }
+
+            if(score > alpha) {
+                alpha = score;
+            }
+        }
+
+        return alpha;
+    }
+
+    int eval = evaluate_board(board);
+    int stand_pat = (board.active_color == WHITE) ? eval : -eval;
+
+    if(stand_pat >= beta) {
+        return beta;
+    }
+
+    if(stand_pat > alpha) {
+        alpha = stand_pat;
+    }
+
+    std::vector<Move> moves = generateLegalMoves(board);
+    std::vector<Move> captures;
+
+    for(const Move& move : moves) {
+        if((move.flags & CAPTURE)) {
+            captures.push_back(move);
+        }
+    }
+
+    if(captures.empty()) {
+        return alpha;
+    }
+
+    reorderLegalMoves(board, captures);
+
+    for(const Move& move : captures) {
+        UndoState state = board.makeMove(move);
+        int score = -quiescence(board, -beta, -alpha, ply+1, 0);
+        board.unmakeMove(state);
+
+        if(score >= beta) {
+            return beta;
+        }
+
+        if(score > alpha) {
+            alpha = score;
+        }
+    }
 
     return alpha;
 }
@@ -99,10 +212,9 @@ Move findBestMove(Board& board, int depth) {
     Move res;
     bool has_best = false;
 
-    int alpha = INT_MIN + 1;
-    int beta = INT_MAX;
-
     for(int curr_depth = 1; curr_depth <= depth; ++curr_depth) {
+        int alpha = INT_MIN + 1;
+        int beta = INT_MAX;
         int best_score = INT_MIN;
 
         std::vector<Move> moves = generateLegalMoves(board);
@@ -118,7 +230,7 @@ Move findBestMove(Board& board, int depth) {
 
         for(const auto& move : moves) {
             UndoState state = board.makeMove(move);
-            int score = -negamax(board, -beta, -alpha, curr_depth-1);
+            int score = -negamax(board, -beta, -alpha, curr_depth-1, 1);
             board.unmakeMove(state);
 
             if(score > best_score) {
@@ -126,6 +238,10 @@ Move findBestMove(Board& board, int depth) {
                 res = move;
                 has_best = true;
             }
+
+            if(score > alpha) {
+                alpha = score;
+            } //Ratchet the root window so later moves at this depth get pruned against it
         }
     }
 
@@ -144,9 +260,18 @@ bool probeTT(uint64_t key, TTEntry& outEntry) {
 }
 
 void storeTT(uint64_t key, int score, int depth, int bound, const Move& best_move) {
-    transposition_table[key & (TT_SIZE - 1)].key = key;
-    transposition_table[key & (TT_SIZE - 1)].score = score;
-    transposition_table[key & (TT_SIZE - 1)].depth = depth;
-    transposition_table[key & (TT_SIZE - 1)].bound = bound;
-    transposition_table[key & (TT_SIZE - 1)].best_move = best_move;
+    TTEntry& slot = transposition_table[key & (TT_SIZE - 1)];
+
+    //Depth-preferred replacement: always refresh the same position, otherwise
+    //only overwrite if the new search went at least as deep as what's stored,
+    //so a cheap shallow entry can't evict an expensive deep one on collision.
+    if(slot.key != key && depth < slot.depth) {
+        return;
+    }
+
+    slot.key = key;
+    slot.score = score;
+    slot.depth = depth;
+    slot.bound = bound;
+    slot.best_move = best_move;
 }

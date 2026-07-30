@@ -17,7 +17,21 @@ The formula is: 10 * values[captured] - values[moved]
 */
 void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves);
 
-int negamax(Board& board, int alpha, int beta, int depth);
+constexpr int MATE_SCORE = 100000;
+constexpr int MATE_THRESHOLD = MATE_SCORE - 1000; //scores at least this close to MATE_SCORE are mate scores, not eval scores
+constexpr int MAX_CHECK_EXTENSIONS = 2;
+
+/*
+Nega-max algorithm with alpha beta pruning. 
+Keeps alpha-beta window updated throughout the whole tree and prunes
+*/
+int negamax(Board& board, int alpha, int beta, int depth, int ply);
+
+/*
+Quiescence search algorithm. 
+Used for "tactical" sequences, with many captures/checks, etc. 
+*/
+int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions);
 
 /*
 Finding best move inside depth one-by-one. Starting from 1

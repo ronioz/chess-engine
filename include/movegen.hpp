@@ -15,17 +15,17 @@ constexpr uint64_t rank_2 = 0x000000000000FF00ULL;
 constexpr uint64_t rank_7 = 0x00FF000000000000ULL;
 constexpr uint64_t rank_8 = 0xFF00000000000000ULL;
 
-//===== Attack tables =====
+//Attack tables
 
 uint64_t kingAttacks(int square);
 uint64_t knightAttacks(int square);
 
-//===== Check detection =====
+//Check detection
 
 bool isSquareAttacked(const Board& board, int square, int by_color);
 bool isInCheck(const Board& board, int color);
 
-//===== Pseudo-legal move generation, per piece type =====
+//Pseudo-legal move generation, per piece type =====
 //Each appends onto the caller-owned vector instead of returning a new one, so
 //generatePseudoLegalMoves can fill a single buffer rather than allocating one per piece type.
 
@@ -36,7 +36,7 @@ void generateBishopMoves(const Board& board, std::vector<Move>& moves);
 void generateRookMoves(const Board& board, std::vector<Move>& moves);
 void generateQueenMoves(const Board& board, std::vector<Move>& moves);
 
-//===== Aggregate move generation =====
+//Aggregate move generation
 
 void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves);
 std::vector<Move> generateLegalMoves(Board& board);
