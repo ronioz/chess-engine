@@ -23,6 +23,12 @@ enum Flag : int {
     DOUBLE_PAWN_PUSH = 1
 };
 
+enum Bound : int {
+    EXACT = 0,
+    LOWER = 1,
+    UPPER = 2
+};
+
 struct Move {
     int start;
     int end;
@@ -38,4 +44,12 @@ struct UndoState {
     int en_passant_square;
     int halfmove_clock;
     uint64_t zobrist_key;
+};
+
+struct TTEntry {
+    uint64_t key;
+    int score;
+    int depth = -1;
+    int bound;
+    Move best_move;
 };

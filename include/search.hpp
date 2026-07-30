@@ -25,3 +25,11 @@ Iterative deepening technique, putting best move from previous depth
 to the start of moves for next depth
 */
 Move findBestMove(Board& board, int depth);
+
+/*
+Transposition tables based on Zobrist Hashing
+*/
+constexpr int TT_SIZE = 1 << 20;
+inline TTEntry transposition_table[TT_SIZE];
+bool probeTT(uint64_t key, TTEntry& outEntry);
+void storeTT(uint64_t key, int score, int depth, int bound, const Move& best_move);
