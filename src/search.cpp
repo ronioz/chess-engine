@@ -165,8 +165,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
         return alpha;
     }
 
-    int eval = evaluate_board(board);
-    int stand_pat = (board.active_color == WHITE) ? eval : -eval;
+    int stand_pat = (board.active_color == WHITE) ? board.eval_score : -board.eval_score;
 
     if(stand_pat >= beta) {
         return beta;

@@ -49,6 +49,7 @@ void Board::setup() {
     bitboards[KING][BLACK]   = 0x1000000000000000ULL; 
 
     updateBitboards();
+    initEvalScore();
 
     active_color = WHITE;
     castling_rights = 15;
@@ -124,6 +125,7 @@ UndoState Board::makeMove(const Move& move) {
     state.en_passant_square = en_passant_square;
     state.halfmove_clock = halfmove_clock;
     state.zobrist_key = zobrist_key;
+    state.eval_score = eval_score;
 
     if(captured_piece != -1) {
         clearPiece(captured_piece, enemy_color, end);
@@ -286,6 +288,7 @@ void Board::unmakeMove(const UndoState& state) {
     en_passant_square = state.en_passant_square;
     halfmove_clock = state.halfmove_clock;
     zobrist_key = state.zobrist_key;
+    eval_score = state.eval_score;
 }
 
 void Board::setPiece(int piece, int color, int sq) {
@@ -293,6 +296,10 @@ void Board::setPiece(int piece, int color, int sq) {
     bitboards[piece][color] |= mask;
     (color == WHITE ? white_pieces : black_pieces) |= mask;
     all_pieces |= mask;
+
+    int pst_sq = (color == WHITE) ? sq : (sq ^ 56);
+    int delta = piece_value[piece] + piece_pst[piece][pst_sq];
+    eval_score += (color == WHITE) ? delta : -delta;
 }
 
 void Board::clearPiece(int piece, int color, int sq) {
@@ -300,6 +307,32 @@ void Board::clearPiece(int piece, int color, int sq) {
     bitboards[piece][color] &= mask;
     (color == WHITE ? white_pieces : black_pieces) &= mask;
     all_pieces &= mask;
+
+    int pst_sq = (color == WHITE) ? sq : (sq ^ 56);
+    int delta = piece_value[piece] + piece_pst[piece][pst_sq];
+    eval_score -= (color == WHITE) ? delta : -delta;
+}
+
+void Board::initEvalScore() {
+    eval_score = 0;
+
+    for(int p = PAWN; p <= KING; ++p) {
+        uint64_t temp = bitboards[p][WHITE];
+        while(temp) {
+            int sq = __builtin_ctzll(temp);
+            eval_score += piece_value[p] + piece_pst[p][sq];
+            temp &= (temp - 1);
+        }
+    }
+
+    for(int p = PAWN; p <= KING; ++p) {
+        uint64_t temp = bitboards[p][BLACK];
+        while(temp) {
+            int sq = __builtin_ctzll(temp) ^ 56;
+            eval_score -= piece_value[p] + piece_pst[p][sq];
+            temp &= (temp - 1);
+        }
+    }
 }
 
 void Board::initZobrist() {

@@ -55,11 +55,12 @@ public:
         {'K', 'k'}
     };
 
-
+    int eval_score = 0;
     UndoState makeMove(const Move& move);
     void unmakeMove(const UndoState& state);
     void setPiece(int piece, int color, int sq);
     void clearPiece(int piece, int color, int sq);
+    void initEvalScore(); //recomputes eval_score from scratch; call after placing pieces outside setPiece (setup/from_FEN)
 
     /*
     Zobrist Hashing
