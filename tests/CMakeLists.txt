@@ -17,3 +17,8 @@ add_executable(test_perft test_perft.cpp ${CMAKE_SOURCE_DIR}/src/board.cpp ${CMA
 target_include_directories(test_perft PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_compile_options(test_perft PRIVATE -UNDEBUG)
 add_test(NAME perft_tests COMMAND test_perft)
+
+add_executable(test_zobrist test_zobrist.cpp ${CMAKE_SOURCE_DIR}/src/board.cpp ${CMAKE_SOURCE_DIR}/src/fen_conversion.cpp)
+target_include_directories(test_zobrist PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_zobrist PRIVATE -UNDEBUG)
+add_test(NAME zobrist_tests COMMAND test_zobrist)

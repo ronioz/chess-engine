@@ -190,6 +190,7 @@ bool from_FEN(Board& board, const std::string& FEN) {
     }
 
     board.fullmove_number = std::stoi(token);
+    board.initZobrist();
 
     return true;
 }

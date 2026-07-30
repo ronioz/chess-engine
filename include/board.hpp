@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string>
+#include <random>
 
 /*
 Board is represented as 64-bit integer (uint64_t)
@@ -35,6 +36,8 @@ public:
     int halfmove_clock = 0;
     int fullmove_number = 1;
 
+    uint64_t zobrist_key;
+
     Board();
     char board[8][8]; //representation with symbols
     void clear(); //empties the board. Everything set to 0
@@ -55,4 +58,15 @@ public:
 
     UndoState makeMove(const Move& move);
     void unmakeMove(const UndoState& state);
+
+    /*
+    Zobrist Hashing
+    */
+   inline static uint64_t zobrist_pieces[6][2][64]; // [piece_type][color][square]
+   inline static uint64_t zobrist_side_to_move;
+   inline static uint64_t zobrist_castling[16];
+   inline static uint64_t zobrist_ep_file[8];
+   inline static bool zobrist_tables_ready = false;
+   void initZobrist();
+   uint64_t initZobristKey();
 };

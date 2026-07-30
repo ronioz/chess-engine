@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 enum Color : int {
     WHITE = 0,
     BLACK = 1
@@ -35,4 +37,5 @@ struct UndoState {
     int castling_rights;
     int en_passant_square;
     int halfmove_clock;
+    uint64_t zobrist_key;
 };
