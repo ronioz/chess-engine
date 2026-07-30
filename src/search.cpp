@@ -8,8 +8,10 @@
 //move list. negamax and quiescence's in-check branch never hold a buffer at the
 //same ply simultaneously (depth==0 in negamax hands off to quiescence before
 //touching move_buffers[ply]), so they safely share move_buffers; quiescence's
-//non-check branch needs a second, separate array since it keeps both the full
-//move list and the filtered capture list alive at once.
+//non-check branch uses capture_buffers instead, populated directly by
+//generateLegalCaptures rather than filtered down from move_buffers - a separate
+//array isn't strictly required anymore, but keeps the two call sites from
+//stepping on each other's slot at the same ply.
 constexpr int MAX_PLY = 128;
 static std::vector<Move> move_buffers[MAX_PLY];
 static std::vector<Move> capture_buffers[MAX_PLY];
@@ -17,34 +19,19 @@ static std::vector<Move> capture_buffers[MAX_PLY];
 void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
     constexpr int values[6] = {100, 290, 310, 500, 900, 0};
     constexpr int MAX_MOVES = 256;
-    int enemy_color = (board.active_color == WHITE) ? BLACK : WHITE;
+
     std::array<std::pair<Move, int>, MAX_MOVES> scored;
     size_t n = legalMoves.size();
 
-    for(int i = 0; i < n; ++i) {
+    for(size_t i = 0; i < n; ++i) {
         Move move = legalMoves[i];
         if(!(move.flags & CAPTURE)) {
             scored[i] = {move, -1};
             continue;
         }
 
-        int moved_piece = -1;
-        for(int p = PAWN; p <= KING; ++p) {
-            if(board.bitboards[p][board.active_color] & (1ULL << move.start)) {
-                moved_piece = p;
-                break;
-            }
-        }
-
-        int captured_piece = PAWN; //en passant always captures a pawn
-        if(!(move.flags & EN_PASSANT)) {
-            for(int p = PAWN; p <= KING; ++p) {
-                if(board.bitboards[p][enemy_color] & (1ULL << move.end)) {
-                    captured_piece = p;
-                    break;
-                }
-            }
-        }
+        int moved_piece = board.piece_on_square[move.start];
+        int captured_piece = (move.flags & EN_PASSANT) ? PAWN : board.piece_on_square[move.end];
 
         scored[i] = {move, (
             10 * values[captured_piece] - values[moved_piece]
@@ -55,7 +42,7 @@ void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
         return a.second > b.second;
     });
 
-    for(int i = 0; i < n; ++i) {
+    for(size_t i = 0; i < n; ++i) {
         legalMoves[i] = scored[i].first;
     }
 }
@@ -192,16 +179,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
     if(stand_pat > alpha) {
         alpha = stand_pat;
     }
-    std::vector<Move>& moves = move_buffers[ply];
-    generateLegalMoves(board, moves);
-    std::vector<Move>& captures = capture_buffers[ply];
-    captures.clear();
 
-    for(const Move& move : moves) {
-        if((move.flags & CAPTURE)) {
-            captures.push_back(move);
-        }
-    }
+    std::vector<Move>& captures = capture_buffers[ply];
+    generateLegalCaptures(board, captures);
 
     if(captures.empty()) {
         return alpha;

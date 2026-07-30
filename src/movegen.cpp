@@ -98,8 +98,8 @@ bool isSquareAttacked(const Board& board, int square, int by_color) {
 
     //Diagonals: +7, -9 (file-1, stop before file A); +9, -7 (file+1, stop before file H)
     //Straight:  +8, -8 (file never changes); +1 (file+1, stop before file H); -1 (file-1, stop before file A)
-    int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
-    uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
+    static constexpr int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
+    static constexpr uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
 
     for(int d = 0; d < 8; ++d) {
         int offset = offsets[d];
@@ -147,7 +147,7 @@ static void addPawnMove(std::vector<Move>& moves, int start, int dest, uint64_t 
     }
 }
 
-void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
+void generatePawnMoves(const Board& board, std::vector<Move>& moves, bool captures_only) {
     int color = board.active_color;
     uint64_t pawns = board.bitboards[PAWN][color];
     uint64_t empty = ~board.all_pieces;
@@ -158,24 +158,26 @@ void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
     uint64_t start_rank = (color == WHITE) ? rank_2 : rank_7;
     int push = (color == WHITE) ? 8 : -8;
 
-    //Single push
-    uint64_t single_push = (color == WHITE) ? ((pawns << 8) & empty) : ((pawns >> 8) & empty);
+    if(!captures_only) {
+        //Single push
+        uint64_t single_push = (color == WHITE) ? ((pawns << 8) & empty) : ((pawns >> 8) & empty);
 
-    while(single_push) {
-        int dest = __builtin_ctzll(single_push);
-        addPawnMove(moves, dest - push, dest, promotion_rank, 0);
-        single_push &= (single_push - 1);
-    }
+        while(single_push) {
+            int dest = __builtin_ctzll(single_push);
+            addPawnMove(moves, dest - push, dest, promotion_rank, 0);
+            single_push &= (single_push - 1);
+        }
 
-    //Double push (both the intermediate square and destination must be empty)
-    uint64_t double_push = (color == WHITE)
-        ? (((pawns & start_rank) << 16) & empty & (empty << 8))
-        : (((pawns & start_rank) >> 16) & empty & (empty >> 8));
+        //Double push (both the intermediate square and destination must be empty)
+        uint64_t double_push = (color == WHITE)
+            ? (((pawns & start_rank) << 16) & empty & (empty << 8))
+            : (((pawns & start_rank) >> 16) & empty & (empty >> 8));
 
-    while(double_push) {
-        int dest = __builtin_ctzll(double_push);
-        moves.push_back({dest - 2 * push, dest, -1, DOUBLE_PAWN_PUSH});
-        double_push &= (double_push - 1);
+        while(double_push) {
+            int dest = __builtin_ctzll(double_push);
+            moves.push_back({dest - 2 * push, dest, -1, DOUBLE_PAWN_PUSH});
+            double_push &= (double_push - 1);
+        }
     }
 
     //Captures: file-1 diagonal and file+1 diagonal
@@ -210,7 +212,7 @@ void generatePawnMoves(const Board& board, std::vector<Move>& moves) {
     }
 }
 
-void generateKnightMoves(const Board& board, std::vector<Move>& moves) {
+void generateKnightMoves(const Board& board, std::vector<Move>& moves, bool captures_only) {
     int color = board.active_color;
     uint64_t knights = board.bitboards[KNIGHT][color];
 
@@ -223,7 +225,7 @@ void generateKnightMoves(const Board& board, std::vector<Move>& moves) {
 
         while(knight_mask) {
             int end = __builtin_ctzll(knight_mask);
-            
+
             Move move;
             move.start = start;
             move.end = end;
@@ -233,8 +235,8 @@ void generateKnightMoves(const Board& board, std::vector<Move>& moves) {
             if((1ULL << end) & enemy_pieces) {
                 move.flags |= CAPTURE;
             }
-            
-            if(!((1ULL << end) & friendly_pieces)) {
+
+            if(!((1ULL << end) & friendly_pieces) && (!captures_only || (move.flags & CAPTURE))) {
                 moves.push_back(move);
             }
 
@@ -245,7 +247,7 @@ void generateKnightMoves(const Board& board, std::vector<Move>& moves) {
     }
 }
 
-void generateKingMoves(const Board& board, std::vector<Move>& moves) {
+void generateKingMoves(const Board& board, std::vector<Move>& moves, bool captures_only) {
     int color = board.active_color;
     uint64_t king = board.bitboards[KING][color];
 
@@ -268,12 +270,14 @@ void generateKingMoves(const Board& board, std::vector<Move>& moves) {
             move.flags |= CAPTURE;
         }
 
-        if(!((1ULL << end) & friendly_pieces)) {
+        if(!((1ULL << end) & friendly_pieces) && (!captures_only || (move.flags & CAPTURE))) {
             moves.push_back(move);
         }
 
         king_mask &= (king_mask - 1);
     }
+
+    if(captures_only) return; //castling is never a capture
 
     //Castling: rights are cleared whenever the king/rook moves or the rook is captured,
     //so a set bit already implies both are on their home squares. The destination square
@@ -302,22 +306,27 @@ void generateKingMoves(const Board& board, std::vector<Move>& moves) {
     }
 }
 
-void generateBishopMoves(const Board& board, std::vector<Move>& moves) {
+static void generateSlidingMoves(const Board& board, std::vector<Move>& moves,
+                                  uint64_t pieces, const int* offsets,
+                                  const uint64_t* edge_files, int dir_count,
+                                  bool captures_only);
+
+void generateBishopMoves(const Board& board, std::vector<Move>& moves, bool captures_only) {
     static constexpr int offsets[4] = {7, -9, 9, -7};
     static constexpr uint64_t edge_files[4] = {file_A, file_A, file_H, file_H};
-    generateSlidingMoves(board, moves, board.bitboards[BISHOP][board.active_color], offsets, edge_files, 4);
+    generateSlidingMoves(board, moves, board.bitboards[BISHOP][board.active_color], offsets, edge_files, 4, captures_only);
 }
 
-void generateRookMoves(const Board& board, std::vector<Move>& moves) {
+void generateRookMoves(const Board& board, std::vector<Move>& moves, bool captures_only) {
     static constexpr int offsets[4] = {8, -8, 1, -1};
     static constexpr uint64_t edge_files[4] = {0ULL, 0ULL, file_H, file_A};
-    generateSlidingMoves(board, moves, board.bitboards[ROOK][board.active_color], offsets, edge_files, 4);  
+    generateSlidingMoves(board, moves, board.bitboards[ROOK][board.active_color], offsets, edge_files, 4, captures_only);
 }
 
-void generateQueenMoves(const Board& board, std::vector<Move>& moves) {
+void generateQueenMoves(const Board& board, std::vector<Move>& moves, bool captures_only) {
     static constexpr int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
     static constexpr uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
-    generateSlidingMoves(board, moves, board.bitboards[QUEEN][board.active_color], offsets, edge_files, 8);    
+    generateSlidingMoves(board, moves, board.bitboards[QUEEN][board.active_color], offsets, edge_files, 8, captures_only);
 }
 
 void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves) {
@@ -327,6 +336,15 @@ void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves) {
     generateBishopMoves(board, moves);
     generateRookMoves(board, moves);
     generateQueenMoves(board, moves);
+}
+
+void generatePseudoLegalCaptures(const Board& board, std::vector<Move>& moves) {
+    generatePawnMoves(board, moves, true);
+    generateKnightMoves(board, moves, true);
+    generateKingMoves(board, moves, true);
+    generateBishopMoves(board, moves, true);
+    generateRookMoves(board, moves, true);
+    generateQueenMoves(board, moves, true);
 }
 
 //Squares/pieces relevant to whether the side to move's king is safe, computed once
@@ -369,8 +387,8 @@ static CheckInfo computeCheckInfo(const Board& board, int color) {
     //Sliding checkers and pins: walk each ray outward from the king. The first
     //occupied square is either an enemy slider (check) or a friendly piece (possibly
     //pinned, if a matching enemy slider is the very next occupied square on the ray).
-    int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
-    uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
+    static constexpr int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
+    static constexpr uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
 
     for(int d = 0; d < 8; ++d) {
         int offset = offsets[d];
@@ -420,12 +438,8 @@ static CheckInfo computeCheckInfo(const Board& board, int color) {
     return info;
 }
 
-void generateLegalMoves(Board& board, std::vector<Move>& out) {
+static void filterLegalMoves(Board& board, const std::vector<Move>& pseudoLegalMoves, std::vector<Move>& out) {
     out.clear();
-    std::vector<Move> pseudoLegalMoves;
-    pseudoLegalMoves.reserve(48);
-    generatePseudoLegalMoves(board, pseudoLegalMoves);
-
     int mover = board.active_color;
     uint64_t king_bb = board.bitboards[KING][mover];
     CheckInfo info = computeCheckInfo(board, mover);
@@ -458,9 +472,25 @@ void generateLegalMoves(Board& board, std::vector<Move>& out) {
     }
 }
 
+void generateLegalMoves(Board& board, std::vector<Move>& out) {
+    out.clear();
+    static std::vector<Move> pseudoLegalMoves;
+    pseudoLegalMoves.clear();
+    generatePseudoLegalMoves(board, pseudoLegalMoves);
+
+    filterLegalMoves(board, pseudoLegalMoves, out);    
+}
+
+void generateLegalCaptures(Board& board, std::vector<Move>& out) {
+    static std::vector<Move> pseudoLegalCaptures;
+    pseudoLegalCaptures.clear();
+    generatePseudoLegalCaptures(board, pseudoLegalCaptures);
+    filterLegalMoves(board, pseudoLegalCaptures, out);
+}
+
 static void generateSlidingMoves(const Board& board, std::vector<Move>& moves,
 uint64_t pieces, const int* offsets,
-const uint64_t* edge_files, int dir_count) {
+const uint64_t* edge_files, int dir_count, bool captures_only) {
     int color = board.active_color;
     uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
     uint64_t enemy_pieces = (color == WHITE) ? board.black_pieces : board.white_pieces;
@@ -488,7 +518,9 @@ const uint64_t* edge_files, int dir_count) {
                     break;
                 }
 
-                moves.push_back(move);
+                //Empty square: the ray keeps walking regardless (a capture may still be
+                //further out), but the quiet move itself is only recorded when wanted.
+                if(!captures_only) moves.push_back(move);
             }
         }
 

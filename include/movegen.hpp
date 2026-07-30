@@ -28,20 +28,19 @@ bool isInCheck(const Board& board, int color);
 //Pseudo-legal move generation, per piece type
 //Each appends onto the caller-owned vector instead of returning a new one, so
 //generatePseudoLegalMoves can fill a single buffer rather than allocating one per piece type.
+//captures_only skips quiet-move push_backs (sliding pieces still walk through empty squares
+//to reach a capture further down the ray - only the push_back itself is gated).
 
-
-static void generateSlidingMoves(const Board& board, std::vector<Move>& moves,
-                                  uint64_t pieces, const int* offsets,
-                                  const uint64_t* edge_files, int dir_count);
-
-void generatePawnMoves(const Board& board, std::vector<Move>& moves);
-void generateKnightMoves(const Board& board, std::vector<Move>& moves);
-void generateKingMoves(const Board& board, std::vector<Move>& moves);
-void generateBishopMoves(const Board& board, std::vector<Move>& moves);
-void generateRookMoves(const Board& board, std::vector<Move>& moves);
-void generateQueenMoves(const Board& board, std::vector<Move>& moves);
+void generatePawnMoves(const Board& board, std::vector<Move>& moves, bool captures_only = false);
+void generateKnightMoves(const Board& board, std::vector<Move>& moves, bool captures_only = false);
+void generateKingMoves(const Board& board, std::vector<Move>& moves, bool captures_only = false);
+void generateBishopMoves(const Board& board, std::vector<Move>& moves, bool captures_only = false);
+void generateRookMoves(const Board& board, std::vector<Move>& moves, bool captures_only = false);
+void generateQueenMoves(const Board& board, std::vector<Move>& moves, bool captures_only = false);
 
 //Aggregate move generation
 
 void generatePseudoLegalMoves(const Board& board, std::vector<Move>& moves);
+void generatePseudoLegalCaptures(const Board& board, std::vector<Move>& moves);
 void generateLegalMoves(Board& board, std::vector<Move>& out);
+void generateLegalCaptures(Board& board, std::vector<Move>& out);

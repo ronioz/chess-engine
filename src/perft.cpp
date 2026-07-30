@@ -1,13 +1,15 @@
 #include <perft.hpp>
 
+constexpr int MAX_PERFT_DEPTH = 64;
+static std::vector<Move> perft_buffers[MAX_PERFT_DEPTH];
+
 uint64_t perft(Board& board, int depth) {
     if(depth == 0) {
         return 1ULL;
     }
 
     uint64_t res = 0ULL;
-
-    std::vector<Move> moves;
+    std::vector<Move>& moves = perft_buffers[depth];
     generateLegalMoves(board, moves);
 
     for(const auto& move : moves) {
