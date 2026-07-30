@@ -65,23 +65,35 @@ int negamax(Board& board, int alpha, int beta, int depth) {
 
 Move findBestMove(Board& board, int depth) {
     Move res;
-    int best_score = INT_MIN;
+    bool has_best = false;
 
     int alpha = INT_MIN + 1;
     int beta = INT_MAX;
 
-    std::vector<Move> moves = generateLegalMoves(board);
+    for(int curr_depth = 1; curr_depth <= depth; ++curr_depth) {
+        int best_score = INT_MIN;
 
-    for(const auto& move : moves) {
-        UndoState state = board.makeMove(move);
+        std::vector<Move> moves = generateLegalMoves(board);
+        if(has_best) {
+            auto it = std::find_if(moves.begin(), moves.end(), [&](const Move& m) {
+                return m.start == res.start && m.end == res.end && m.promotion == res.promotion;
+            });
 
-        int score = -negamax(board, -beta, -alpha, depth-1);
+            if(it != moves.end()) {
+                std::iter_swap(moves.begin(), it);
+            }
+        } //Iterative deepening (moving best moves in the beginning)
 
-        board.unmakeMove(state);
+        for(const auto& move : moves) {
+            UndoState state = board.makeMove(move);
+            int score = -negamax(board, -beta, -alpha, curr_depth-1);
+            board.unmakeMove(state);
 
-        if(score > best_score) {
-            best_score = score;
-            res = move;
+            if(score > best_score) {
+                best_score = score;
+                res = move;
+                has_best = true;
+            }
         }
     }
 

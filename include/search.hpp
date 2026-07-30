@@ -16,5 +16,12 @@ If no capture occurs, then the score is set to -1
 The formula is: 10 * values[captured] - values[moved]
 */
 void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves);
+
 int negamax(Board& board, int alpha, int beta, int depth);
+
+/*
+Finding best move inside depth one-by-one. Starting from 1
+Iterative deepening technique, putting best move from previous depth
+to the start of moves for next depth
+*/
 Move findBestMove(Board& board, int depth);
