@@ -37,7 +37,4 @@ Claude.md
 
 # Prompts
 output-prompts/
-
-# Benchmark
-include/benchmark.hpp
-src/benchmark.cpp
+input-prompts/
