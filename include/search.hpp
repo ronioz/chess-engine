@@ -22,14 +22,14 @@ constexpr int MATE_THRESHOLD = MATE_SCORE - 1000; //scores at least this close t
 constexpr int MAX_CHECK_EXTENSIONS = 2;
 
 /*
-Nega-max algorithm with alpha beta pruning. 
+Nega-max algorithm with alpha beta pruning.
 Keeps alpha-beta window updated throughout the whole tree and prunes
 */
 int negamax(Board& board, int alpha, int beta, int depth, int ply);
 
 /*
-Quiescence search algorithm. 
-Used for "tactical" sequences, with many captures/checks, etc. 
+Quiescence search algorithm.
+Used for "tactical" sequences, with many captures/checks, etc.
 */
 int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions);
 
@@ -37,8 +37,15 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
 Finding best move inside depth one-by-one. Starting from 1
 Iterative deepening technique, putting best move from previous depth
 to the start of moves for next depth
+out_score, if non-null, is set to the final depth's best score (for benchmarking/verification)
 */
-Move findBestMove(Board& board, int depth);
+Move findBestMove(Board& board, int depth, int* out_score = nullptr);
+
+/*
+Total negamax + quiescence node visits since the last resetNodeCount(), for NPS benchmarking
+*/
+extern uint64_t nodes_searched;
+void resetNodeCount();
 
 /*
 Transposition tables based on Zobrist Hashing
@@ -47,3 +54,4 @@ constexpr int TT_SIZE = 1 << 20;
 inline TTEntry transposition_table[TT_SIZE];
 bool probeTT(uint64_t key, TTEntry& outEntry);
 void storeTT(uint64_t key, int score, int depth, int bound, const Move& best_move);
+void clearTT(); //resets every slot; used between benchmark runs so node counts aren't skewed by a previous position's cached entries

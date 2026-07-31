@@ -16,6 +16,12 @@ constexpr int MAX_PLY = 128;
 static std::vector<Move> move_buffers[MAX_PLY];
 static std::vector<Move> capture_buffers[MAX_PLY];
 
+uint64_t nodes_searched = 0;
+
+void resetNodeCount() {
+    nodes_searched = 0;
+}
+
 void reorderLegalMoves(Board& board, std::vector<Move>& legalMoves) {
     constexpr int values[6] = {100, 290, 310, 500, 900, 0};
     constexpr int MAX_MOVES = 256;
@@ -64,6 +70,8 @@ static int scoreFromTT(int score, int ply) {
 }
 
 int negamax(Board& board, int alpha, int beta, int depth, int ply) {
+    ++nodes_searched;
+
     if(depth == 0) {
         return quiescence(board, alpha, beta, ply, 0);
     }
@@ -132,6 +140,8 @@ int negamax(Board& board, int alpha, int beta, int depth, int ply) {
 }
 
 int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions) {
+    ++nodes_searched;
+
     bool in_check = isInCheck(board, board.active_color);
 
     if(in_check) {
@@ -206,9 +216,10 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
     return alpha;
 }
 
-Move findBestMove(Board& board, int depth) {
+Move findBestMove(Board& board, int depth, int* out_score) {
     Move res;
     bool has_best = false;
+    int final_score = 0;
 
     for(int curr_depth = 1; curr_depth <= depth; ++curr_depth) {
         int alpha = INT_MIN + 1;
@@ -243,6 +254,12 @@ Move findBestMove(Board& board, int depth) {
                 alpha = score;
             } //Ratchet the root window so later moves at this depth get pruned against it
         }
+
+        final_score = best_score;
+    }
+
+    if(out_score) {
+        *out_score = final_score;
     }
 
     return res;
@@ -274,4 +291,10 @@ void storeTT(uint64_t key, int score, int depth, int bound, const Move& best_mov
     slot.depth = depth;
     slot.bound = bound;
     slot.best_move = best_move;
+}
+
+void clearTT() {
+    for(int i = 0; i < TT_SIZE; ++i) {
+        transposition_table[i] = TTEntry{};
+    }
 }
