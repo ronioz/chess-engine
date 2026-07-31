@@ -217,7 +217,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int check_extensions)
 }
 
 Move findBestMove(Board& board, int depth, int* out_score) {
-    Move res;
+    Move res{-1, -1}; //sentinel: no legal move found (checkmate/stalemate at the root)
     bool has_best = false;
     int final_score = 0;
 
@@ -225,9 +225,13 @@ Move findBestMove(Board& board, int depth, int* out_score) {
         int alpha = INT_MIN + 1;
         int beta = INT_MAX;
         int best_score = INT_MIN;
-        
+
         std::vector<Move>& moves = move_buffers[0];
         generateLegalMoves(board, moves);
+
+        if(moves.empty()) {
+            break; //no legal move at any depth either - stop iterating
+        }
 
         if(has_best) {
             auto it = std::find_if(moves.begin(), moves.end(), [&](const Move& m) {
