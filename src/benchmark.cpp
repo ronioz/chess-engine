@@ -39,6 +39,8 @@ static std::string moveToStr(const Move& move) {
 
 void benchmarkSearch(Board& board, int depth, const std::string& label) {
     clearTT();
+    clearKillers();
+    clearHistory();
     resetNodeCount();
 
     auto startTime = std::chrono::high_resolution_clock::now();

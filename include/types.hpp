@@ -47,6 +47,13 @@ struct UndoState {
     uint64_t zobrist_key;
 };
 
+//Only en_passant_square and zobrist_key change on a null move (side to move
+//passes without moving a piece), so it doesn't need the full UndoState.
+struct NullUndoState {
+    int en_passant_square;
+    uint64_t zobrist_key;
+};
+
 struct TTEntry {
     uint64_t key;
     int score;

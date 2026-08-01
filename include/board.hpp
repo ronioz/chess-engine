@@ -59,6 +59,8 @@ public:
     int eval_score = 0;
     UndoState makeMove(const Move& move);
     void unmakeMove(const UndoState& state);
+    NullUndoState makeNullMove(); //passes the turn without moving a piece, for null-move pruning
+    void unmakeNullMove(const NullUndoState& state);
     void setPiece(int piece, int color, int sq);
     void clearPiece(int piece, int color, int sq);
     void initEvalScore(); //recomputes eval_score from scratch; call after placing pieces outside setPiece (setup/from_FEN)

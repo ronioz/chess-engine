@@ -280,6 +280,28 @@ void Board::unmakeMove(const UndoState& state) {
     eval_score = state.eval_score;
 }
 
+NullUndoState Board::makeNullMove() {
+    NullUndoState state;
+    state.en_passant_square = en_passant_square;
+    state.zobrist_key = zobrist_key;
+
+    if(en_passant_square != -1) {
+        zobrist_key ^= zobrist_ep_file[en_passant_square % 8];
+    }
+    en_passant_square = -1;
+
+    zobrist_key ^= zobrist_side_to_move;
+    switchColor();
+
+    return state;
+}
+
+void Board::unmakeNullMove(const NullUndoState& state) {
+    switchColor();
+    en_passant_square = state.en_passant_square;
+    zobrist_key = state.zobrist_key;
+}
+
 void Board::setPiece(int piece, int color, int sq) {
     uint64_t mask = 1ULL << sq;
     bitboards[piece][color] |= mask;
