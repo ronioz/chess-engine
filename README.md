@@ -1,4 +1,4 @@
-# Chess Engine
+# UCI Chess Engine (2150 ELO)
 
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 
