@@ -185,9 +185,9 @@ averaged across repeated runs. Reproduce with the same command.
 
 ### Strength (ELO)
 
-**Not yet measured.** No self-play SPRT or rating-pool result exists — this
-is an explicit gap, not an omission, and is listed in
-[Roadmap](#roadmap) rather than filled with a placeholder number.
+**2150 ELO**
+Tested by running a time-based tournament against Stockfish Engines (2000, 2100, 2200 ELOS).
+10-10 games to balance out the color (dis)advantage. White/Black.
 
 ---
 
