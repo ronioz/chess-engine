@@ -209,20 +209,6 @@ project's default `Release` configuration instead of silently compiling out.
 
 ---
 
-## Roadmap
-
-- **UCI time management** (`wtime`/`btime`/`movetime`) — required before
-  the engine can be used in a real clock-based GUI match instead of
-  fixed-depth mode.
-- **Draw detection** (50-move rule, threefold repetition) — `halfmove_clock`
-  is already tracked through make/unmake and FEN round-trips but not yet
-  read by search.
-- **Magic bitboards** for sliding-piece attacks, replacing the current
-  ray-tracing — the largest remaining raw NPS lever once correctness-first
-  scope allows revisiting it.
-
----
-
 ## License
 
 No license file yet.
