@@ -18,18 +18,18 @@ standard proof a chess engine's legality logic has no hidden bugs:
 
 | Position | Depth | Nodes | Time | NPS |
 |---|---|---|---|---|
-| Start position | 6 | 119,060,324 | 25.936 s | 4.6M |
-| [Kiwipete](https://www.chessprogramming.org/Perft_Results#Position_2) | 5 | 193,690,690 | 3.361 s | 57.6M |
+| Start position | 6 | 119,060,324 | 4.031 s | 29.5M |
+| [Kiwipete](https://www.chessprogramming.org/Perft_Results#Position_2) | 5 | 193,690,690 | 6.464 s | 30.0M |
 
 Both node counts match the published reference values exactly. Kiwipete
 specifically exercises castling rights, en passant, and promotions — the
 edge cases a naive move generator usually gets wrong. Measured on Apple M3,
 single-threaded, Release build (`cmake -S . -B build`, no explicit flags —
 see [Build](#build)). See [Benchmarks](#benchmarks) for methodology and
-search NPS. (Start-position NPS reflects the current make/unmake-per-candidate
-legality check — see [Overview](#overview) — rather than the faster
-check-mask/pin-ray filtering; the Kiwipete row predates that change and
-hasn't been re-measured yet.)
+search NPS. NPS reflects the current make/unmake-per-candidate legality
+check (see [Overview](#overview)) rather than a precomputed check-mask/pin-ray
+shortcut — roughly half the throughput of that approach, in exchange for
+simpler, more directly verifiable legality logic.
 
 ---
 
@@ -160,16 +160,15 @@ flowchart TD
 
 | Position | Depth | Nodes | Time | NPS |
 |---|---|---|---|---|
-| Start position | 6 | 119,060,324 | 25.936 s | 4.6M |
-| Kiwipete | 5 | 193,690,690 | 3.361 s | 57.6M |
+| Start position | 6 | 119,060,324 | 4.031 s | 29.5M |
+| Kiwipete | 5 | 193,690,690 | 6.464 s | 30.0M |
 
 Both exactly match [published reference counts](https://www.chessprogramming.org/Perft_Results).
 The automated test suite (see [Testing](#testing)) additionally validates
 start position (depth 1–5), Kiwipete (depth 1–4), and a rook endgame
-(depth 1–5) against exact reference counts on every run. The start-position
-row is post-revert to make/unmake-per-candidate legality checking (see
-[Overview](#overview)), which is why its NPS is well below the Kiwipete
-row's — that row hasn't been re-measured under the new legality check yet.
+(depth 1–5) against exact reference counts on every run. Measured under the
+current make/unmake-per-candidate legality check (see [Overview](#overview)),
+roughly half the NPS of the previous check-mask/pin-ray approach.
 
 ### Search NPS
 
@@ -178,11 +177,11 @@ endgame, a tactical middlegame with pins/promotions):
 
 | Position | Best move | Score | Nodes | Time | NPS |
 |---|---|---|---|---|---|
-| Start position | b1c3 | 0 | 50,218 | 0.037 s | 1.4M |
-| Kiwipete | e2a6 | 40 | 1,114,358 | 1.437 s | 0.8M |
-| Endgame | b4f4 | 45 | 26,626 | 0.026 s | 1.0M |
-| Tactical | d7c8r | 475 | 158,056 | 0.141 s | 1.1M |
-| **Overall** | | | 1,349,258 | 1.667 s | 0.8M |
+| Start position | b1c3 | 0 | 50,218 | 0.006 s | 8.4M |
+| Kiwipete | e2a6 | 40 | 1,114,358 | 0.250 s | 4.5M |
+| Endgame | b4f4 | 45 | 26,626 | 0.005 s | 5.9M |
+| Tactical | d7c8r | 475 | 158,056 | 0.023 s | 6.7M |
+| **Overall** | | | 1,349,258 | 0.291 s | 4.6M |
 
 Search NPS is lower than perft NPS because it also does TT probes,
 move-scoring, and evaluation per node, not just legal-move generation.
