@@ -2,7 +2,7 @@
 
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 
-A UCI chess engine in C++20 — bitboard move generation with pin/check-mask
+A UCI chess engine in C++20 — bitboard move generation with make/unmake
 legality filtering, negamax alpha-beta search with a Zobrist-hashed
 transposition table, single-threaded and deterministic by design.
 
@@ -18,7 +18,7 @@ standard proof a chess engine's legality logic has no hidden bugs:
 
 | Position | Depth | Nodes | Time | NPS |
 |---|---|---|---|---|
-| Start position | 6 | 119,060,324 | 2.131 s | 55.9M |
+| Start position | 6 | 119,060,324 | 25.936 s | 4.6M |
 | [Kiwipete](https://www.chessprogramming.org/Perft_Results#Position_2) | 5 | 193,690,690 | 3.361 s | 57.6M |
 
 Both node counts match the published reference values exactly. Kiwipete
@@ -26,7 +26,10 @@ specifically exercises castling rights, en passant, and promotions — the
 edge cases a naive move generator usually gets wrong. Measured on Apple M3,
 single-threaded, Release build (`cmake -S . -B build`, no explicit flags —
 see [Build](#build)). See [Benchmarks](#benchmarks) for methodology and
-search NPS.
+search NPS. (Start-position NPS reflects the current make/unmake-per-candidate
+legality check — see [Overview](#overview) — rather than the faster
+check-mask/pin-ray filtering; the Kiwipete row predates that change and
+hasn't been re-measured yet.)
 
 ---
 
@@ -157,26 +160,29 @@ flowchart TD
 
 | Position | Depth | Nodes | Time | NPS |
 |---|---|---|---|---|
-| Start position | 6 | 119,060,324 | 2.131 s | 55.9M |
+| Start position | 6 | 119,060,324 | 25.936 s | 4.6M |
 | Kiwipete | 5 | 193,690,690 | 3.361 s | 57.6M |
 
 Both exactly match [published reference counts](https://www.chessprogramming.org/Perft_Results).
 The automated test suite (see [Testing](#testing)) additionally validates
 start position (depth 1–5), Kiwipete (depth 1–4), and a rook endgame
-(depth 1–5) against exact reference counts on every run.
+(depth 1–5) against exact reference counts on every run. The start-position
+row is post-revert to make/unmake-per-candidate legality checking (see
+[Overview](#overview)), which is why its NPS is well below the Kiwipete
+row's — that row hasn't been re-measured under the new legality check yet.
 
 ### Search NPS
 
 Depth-6 search over a small fixed position suite (start, Kiwipete, a sparse
 endgame, a tactical middlegame with pins/promotions):
 
-| Position | Nodes | Time | NPS |
-|---|---|---|---|
-| Start position | 439,519 | 0.049 s | 9.0M |
-| Kiwipete | 1,157,911 | 0.183 s | 6.3M |
-| Endgame | 24,955 | 0.004 s | 6.6M |
-| Tactical | 347,950 | 0.046 s | 7.5M |
-| **Overall** | 1,970,335 | 0.288 s | 6.8M |
+| Position | Best move | Score | Nodes | Time | NPS |
+|---|---|---|---|---|---|
+| Start position | b1c3 | 0 | 50,218 | 0.037 s | 1.4M |
+| Kiwipete | e2a6 | 40 | 1,114,358 | 1.437 s | 0.8M |
+| Endgame | b4f4 | 45 | 26,626 | 0.026 s | 1.0M |
+| Tactical | d7c8r | 475 | 158,056 | 0.141 s | 1.1M |
+| **Overall** | | | 1,349,258 | 1.667 s | 0.8M |
 
 Search NPS is lower than perft NPS because it also does TT probes,
 move-scoring, and evaluation per node, not just legal-move generation.
