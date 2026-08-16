@@ -347,128 +347,18 @@ void generatePseudoLegalCaptures(const Board& board, std::vector<Move>& moves) {
     generateQueenMoves(board, moves, true);
 }
 
-//Squares/pieces relevant to whether the side to move's king is safe, computed once
-//per node instead of once per candidate move. checkers_count >= 2 means only king
-//moves can be legal; check_mask (valid when checkers_count == 1) is the set of
-//squares a non-king move must land on to capture or block the sole checker; pinned
-//marks friendly pieces pinned to the king, and pin_ray[sq] is the only line a piece
-//pinned on sq may move along without exposing the king.
-struct CheckInfo {
-    int checkers_count = 0;
-    uint64_t check_mask = ~0ULL;
-    uint64_t pinned = 0ULL;
-    uint64_t pin_ray[64];
-};
-
-static CheckInfo computeCheckInfo(const Board& board, int color) {
-    CheckInfo info;
-
-    int king_square = __builtin_ctzll(board.bitboards[KING][color]);
-    int enemy_color = (color == WHITE) ? BLACK : WHITE;
-    uint64_t king_bb = 1ULL << king_square;
-    uint64_t friendly_pieces = (color == WHITE) ? board.white_pieces : board.black_pieces;
-
-    //Knight/pawn checks can only be resolved by capturing the checker, never by blocking.
-    uint64_t knight_checkers = knightAttacks(king_square) & board.bitboards[KNIGHT][enemy_color];
-    if(knight_checkers) {
-        info.checkers_count++;
-        info.check_mask = knight_checkers;
-    }
-
-    uint64_t enemy_pawns = board.bitboards[PAWN][enemy_color];
-    uint64_t pawn_checkers = (enemy_color == WHITE)
-        ? (((king_bb >> 7) & enemy_pawns & ~file_A) | ((king_bb >> 9) & enemy_pawns & ~file_H))
-        : (((king_bb << 9) & enemy_pawns & ~file_A) | ((king_bb << 7) & enemy_pawns & ~file_H));
-    if(pawn_checkers) {
-        info.checkers_count++;
-        info.check_mask = pawn_checkers;
-    }
-
-    //Sliding checkers and pins: walk each ray outward from the king. The first
-    //occupied square is either an enemy slider (check) or a friendly piece (possibly
-    //pinned, if a matching enemy slider is the very next occupied square on the ray).
-    static constexpr int offsets[8] = {7, -9, 9, -7, 8, -8, 1, -1};
-    static constexpr uint64_t edge_files[8] = {file_A, file_A, file_H, file_H, 0ULL, 0ULL, file_H, file_A};
-
-    for(int d = 0; d < 8; ++d) {
-        int offset = offsets[d];
-        uint64_t edge_file = edge_files[d];
-        int slider_type = (d < 4) ? BISHOP : ROOK;
-
-        uint64_t ray = 0ULL;
-        int blocker_square = -1;
-        int temp = king_square;
-
-        while(true) {
-            if((1ULL << temp) & edge_file) break;
-
-            temp += offset;
-            if(temp < 0 || temp >= 64) break;
-
-            uint64_t mask = (1ULL << temp);
-            ray |= mask;
-
-            if(!(mask & board.all_pieces)) continue;
-
-            bool enemy_slider = (mask & board.bitboards[slider_type][enemy_color]) || (mask & board.bitboards[QUEEN][enemy_color]);
-
-            if(blocker_square == -1) {
-                if(mask & friendly_pieces) {
-                    blocker_square = temp;
-                    continue;
-                }
-
-                if(enemy_slider) {
-                    info.checkers_count++;
-                    info.check_mask = ray;
-                }
-
-                break;
-            }
-
-            if(enemy_slider) {
-                info.pinned |= (1ULL << blocker_square);
-                info.pin_ray[blocker_square] = ray;
-            }
-
-            break;
-        }
-    }
-
-    return info;
-}
-
+//Legality is verified by actually making each pseudo-legal move and checking
+//whether the mover's own king is left in check, then unmaking it - simple and
+//correct, at the cost of a full makeMove/unmakeMove pair per candidate move
+//instead of a precomputed check-mask/pin-ray shortcut.
 static void filterLegalMoves(Board& board, const std::vector<Move>& pseudoLegalMoves, std::vector<Move>& out) {
     out.clear();
     int mover = board.active_color;
-    uint64_t king_bb = board.bitboards[KING][mover];
-    CheckInfo info = computeCheckInfo(board, mover);
 
     for(const auto& move : pseudoLegalMoves) {
-        uint64_t start_bb = (1ULL << move.start);
-        bool is_king_move = (start_bb & king_bb) != 0;
-        bool is_en_passant = (move.flags & EN_PASSANT) != 0;
-
-        if(is_king_move || is_en_passant) {
-            //King moves (incl. castling) and en passant have edge cases the mask
-            //shortcuts below don't model - a king retreating along the very ray
-            //it's checked on, and the rare horizontal discovered check when both
-            //en passant pawns vanish at once - so they're verified via make/unmake.
-            UndoState state = board.makeMove(move);
-            if(!isInCheck(board, mover)) out.push_back(move);
-            board.unmakeMove(state);
-            continue;
-        }
-
-        if(info.checkers_count >= 2) continue; //double check: only the king can move
-
-        uint64_t dest_bb = (1ULL << move.end);
-
-        if(info.checkers_count == 1 && !(dest_bb & info.check_mask)) continue; //must capture/block the checker
-
-        if((info.pinned & start_bb) && !(dest_bb & info.pin_ray[move.start])) continue; //pinned piece must stay on the pin ray
-
-        out.push_back(move);
+        UndoState state = board.makeMove(move);
+        if(!isInCheck(board, mover)) out.push_back(move);
+        board.unmakeMove(state);
     }
 }
 

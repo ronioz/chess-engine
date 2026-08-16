@@ -38,4 +38,5 @@ Claude.md
 # Prompts
 output-prompts/
 input-prompts/
-elo-test
+elo-test/
+cutechess-gui/
