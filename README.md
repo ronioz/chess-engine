@@ -12,8 +12,9 @@ transposition table, single-threaded and deterministic by design.
 
 ## Headline Result: Perft Correctness
 
-No rated playing strength yet (see [Benchmarks](#benchmarks)), so the
-strongest verifiable claim right now is move-generator correctness — the
+Playing strength is a self-play estimate against Stockfish, not a
+pool-verified rating (see [Strength (ELO)](#strength-elo)), so the strongest
+independently verifiable claim right now is move-generator correctness — the
 standard proof a chess engine's legality logic has no hidden bugs:
 
 | Position | Depth | Nodes | Time | NPS |
@@ -192,9 +193,22 @@ averaged across repeated runs. Reproduce with the same command.
 
 ### Strength (ELO)
 
-**Not yet measured.** No self-play SPRT or rating-pool result exists — this
-is an explicit gap, not an omission, and is listed in
-[Roadmap](#roadmap) rather than filled with a placeholder number.
+Self-play ladder against Stockfish at fixed target strengths
+(`UCI_LimitStrength` + `UCI_Elo`), via `elo-test/elo_ladder.py`
+(fastchess-driven, wall-clock `tc=10+0.1` for both engines, 20 games per
+rung — 10 rounds × 2, colors swapped):
+
+| Stockfish target | Elo diff | Games | Projected engine Elo |
+|---|---|---|---|
+| 2000 | +88.74 | 20 | 2089 |
+| 2100 | +70.44 | 20 | 2170 |
+| 2200 | +34.86 | 20 | 2235 |
+
+**Projected engine Elo (average over ladder): ~2165.**
+
+This is a self-play estimate against strength-limited Stockfish, not a
+pool-verified rating (e.g. CCRL/CEGT) — treat it as directional. Reproduce
+with `elo-test/setup.sh` once, then `elo-test/elo_ladder.py`.
 
 ---
 
